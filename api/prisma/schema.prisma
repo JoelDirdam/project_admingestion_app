@@ -1,0 +1,493 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum LocationType {
+  PRODUCTION
+  WAREHOUSE
+  STORE
+  ROUTE
+}
+
+enum InventoryMovementType {
+  PRODUCTION_IN
+  TRANSFER_OUT
+  TRANSFER_IN
+  SALE
+  ADJUSTMENT
+  RETURN
+}
+
+enum DistributionStatus {
+  PENDING
+  IN_TRANSIT
+  CONFIRMED
+  CANCELLED
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  CLOSED
+}
+
+enum SaleChannel {
+  STORE
+  ROUTE
+  ONLINE
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
+  CREDIT
+}
+
+// ============================================
+// MODELS
+// ============================================
+
+// Company represents a tenant in the multi-tenant system
+// Each bakery client (e.g., "Panadería La Paz") is a Company
+model Company {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  email       String?
+  phone       String?
+  address     String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  campaigns            Campaign[]
+  locations            Location[]
+  products             Product[]
+  users                User[]
+  production_batches   ProductionBatch[]
+  inventory_movements  InventoryMovement[]
+  distribution_orders  DistributionOrder[]
+  sales                Sale[]
+  payments             Payment[]
+
+  @@map("companies")
+}
+
+// Campaign groups all production, inventory, distribution, sales and payments
+// for a specific Rosca de Reyes season
+model Campaign {
+  id          String         @id @default(uuid())
+  company_id  String
+  name        String
+  description String?
+  start_date  DateTime
+  end_date    DateTime
+  status      CampaignStatus @default(DRAFT)
+  created_at  DateTime       @default(now())
+  updated_at  DateTime       @updatedAt
+
+  company             Company              @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  production_batches  ProductionBatch[]
+  price_configs       PriceConfig[]
+  inventory_movements InventoryMovement[]
+  distribution_orders DistributionOrder[]
+  sales               Sale[]
+  payments            Payment[]
+
+  @@index([company_id])
+  @@index([status])
+  @@map("campaigns")
+}
+
+// Product represents a product line (e.g., "Rosca de Reyes")
+model Product {
+  id          String   @id @default(uuid())
+  company_id  String
+  name        String
+  description String?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  company         Company         @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  product_variants ProductVariant[]
+
+  @@index([company_id])
+  @@map("products")
+}
+
+// ProductVariant represents a specific variant of a product (e.g., "Rosca Grande", "Rosca Mediana")
+model ProductVariant {
+  id          String   @id @default(uuid())
+  product_id  String
+  name        String
+  sku         String?
+  description String?
+  weight_kg   Float?
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  product       Product       @relation(fields: [product_id], references: [id], onDelete: Cascade)
+  price_configs PriceConfig[]
+  batch_items   ProductionBatchItem[]
+  movement_items InventoryMovementItem[]
+  order_items   DistributionOrderItem[]
+  receipt_items DistributionReceiptItem[]
+  sale_items    SaleItem[]
+
+  @@index([product_id])
+  @@index([sku])
+  @@map("product_variants")
+}
+
+// PriceConfig defines pricing for a ProductVariant within a Campaign
+model PriceConfig {
+  id                String   @id @default(uuid())
+  product_variant_id String
+  campaign_id       String
+  price             Decimal  @db.Decimal(10, 2)
+  cost              Decimal? @db.Decimal(10, 2)
+  is_active         Boolean  @default(true)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  product_variant ProductVariant @relation(fields: [product_variant_id], references: [id], onDelete: Cascade)
+  campaign        Campaign       @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
+
+  @@unique([product_variant_id, campaign_id])
+  @@index([campaign_id])
+  @@map("price_configs")
+}
+
+// Location represents physical locations (production facility, warehouse, store, route)
+model Location {
+  id            String       @id @default(uuid())
+  company_id    String
+  name          String
+  type          LocationType
+  address       String?
+  contact_name  String?
+  contact_phone String?
+  is_active     Boolean      @default(true)
+  created_at    DateTime     @default(now())
+  updated_at    DateTime     @updatedAt
+
+  company                Company                @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  production_batches      ProductionBatch[]
+  inventory_movements_out InventoryMovement[]   @relation("LocationOut")
+  inventory_movements_in  InventoryMovement[]   @relation("LocationIn")
+  distribution_orders_from DistributionOrder[]  @relation("LocationFrom")
+  distribution_orders_to   DistributionOrder[]  @relation("LocationTo")
+  sales                   Sale[]
+  payments                Payment[]
+
+  @@index([company_id])
+  @@index([type])
+  @@map("locations")
+}
+
+// User represents system users (admins, managers, operators)
+model User {
+  id          String   @id @default(uuid())
+  company_id  String
+  email       String
+  password    String
+  first_name  String
+  last_name   String
+  role        String   @default("operator")
+  is_active   Boolean  @default(true)
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  company            Company             @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  production_batches ProductionBatch[]
+  inventory_movements InventoryMovement[]
+  distribution_orders DistributionOrder[]
+  sales              Sale[]
+  payments           Payment[]
+
+  @@unique([company_id, email])
+  @@index([company_id])
+  @@map("users")
+}
+
+// ProductionBatch represents a batch of products produced at a PRODUCTION location
+model ProductionBatch {
+  id          String   @id @default(uuid())
+  company_id  String
+  campaign_id String
+  location_id String
+  user_id     String
+  batch_number String
+  production_date DateTime
+  notes       String?
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  company            Company              @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  campaign           Campaign            @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
+  location           Location            @relation(fields: [location_id], references: [id], onDelete: Cascade)
+  user               User                @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  batch_items        ProductionBatchItem[]
+  inventory_movements InventoryMovement[]
+
+  @@unique([company_id, batch_number])
+  @@index([campaign_id])
+  @@index([location_id])
+  @@map("production_batches")
+}
+
+// ProductionBatchItem represents a line item in a production batch
+model ProductionBatchItem {
+  id                 String   @id @default(uuid())
+  production_batch_id String
+  product_variant_id String
+  quantity           Int
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  production_batch ProductionBatch @relation(fields: [production_batch_id], references: [id], onDelete: Cascade)
+  product_variant  ProductVariant  @relation(fields: [product_variant_id], references: [id], onDelete: Cascade)
+
+  @@index([production_batch_id])
+  @@map("production_batch_items")
+}
+
+// InventoryMovement represents all stock changes (production in, transfers, sales, adjustments)
+model InventoryMovement {
+  id          String                @id @default(uuid())
+  company_id  String
+  campaign_id String
+  type        InventoryMovementType
+  location_from_id String?          // null for PRODUCTION_IN
+  location_to_id   String            // null for SALE (sale location is in Sale model)
+  user_id     String
+  production_batch_id String?       // Optional reference to ProductionBatch
+  reference_type String?             // e.g., "PRODUCTION_BATCH", "DISTRIBUTION_ORDER", "SALE"
+  reference_id   String?             // ID of the referenced entity
+  notes       String?
+  created_at  DateTime              @default(now())
+  updated_at  DateTime              @updatedAt
+
+  company         Company                @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  campaign        Campaign              @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
+  location_from   Location?             @relation("LocationOut", fields: [location_from_id], references: [id], onDelete: Cascade)
+  location_to     Location              @relation("LocationIn", fields: [location_to_id], references: [id], onDelete: Cascade)
+  user            User                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  production_batch ProductionBatch?      @relation(fields: [production_batch_id], references: [id], onDelete: SetNull)
+  movement_items  InventoryMovementItem[]
+
+  @@index([company_id])
+  @@index([campaign_id])
+  @@index([type])
+  @@index([location_from_id])
+  @@index([location_to_id])
+  @@index([production_batch_id])
+  @@map("inventory_movements")
+}
+
+// InventoryMovementItem represents a line item in an inventory movement
+model InventoryMovementItem {
+  id                   String   @id @default(uuid())
+  inventory_movement_id String
+  product_variant_id   String
+  quantity             Int
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  inventory_movement InventoryMovement @relation(fields: [inventory_movement_id], references: [id], onDelete: Cascade)
+  product_variant    ProductVariant    @relation(fields: [product_variant_id], references: [id], onDelete: Cascade)
+
+  @@index([inventory_movement_id])
+  @@map("inventory_movement_items")
+}
+
+// DistributionOrder represents an order to move stock from one location to another
+model DistributionOrder {
+  id              String             @id @default(uuid())
+  company_id      String
+  campaign_id     String
+  location_from_id String
+  location_to_id   String
+  user_id         String
+  order_number    String
+  status          DistributionStatus @default(PENDING)
+  scheduled_date  DateTime?
+  notes           String?
+  created_at      DateTime           @default(now())
+  updated_at      DateTime           @updatedAt
+
+  company         Company                @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  campaign        Campaign              @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
+  location_from   Location              @relation("LocationFrom", fields: [location_from_id], references: [id], onDelete: Cascade)
+  location_to     Location              @relation("LocationTo", fields: [location_to_id], references: [id], onDelete: Cascade)
+  user            User                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  order_items     DistributionOrderItem[]
+  shared_links    SharedLink[]
+  receipts        DistributionReceipt[]
+
+  @@unique([company_id, order_number])
+  @@index([campaign_id])
+  @@index([status])
+  @@index([location_from_id])
+  @@index([location_to_id])
+  @@map("distribution_orders")
+}
+
+// DistributionOrderItem represents a line item in a distribution order
+model DistributionOrderItem {
+  id                 String   @id @default(uuid())
+  distribution_order_id String
+  product_variant_id String
+  quantity_ordered   Int
+  quantity_received  Int      @default(0)
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  distribution_order DistributionOrder @relation(fields: [distribution_order_id], references: [id], onDelete: Cascade)
+  product_variant    ProductVariant    @relation(fields: [product_variant_id], references: [id], onDelete: Cascade)
+
+  @@index([distribution_order_id])
+  @@map("distribution_order_items")
+}
+
+// SharedLink allows external confirmation of distribution orders via a shareable link
+model SharedLink {
+  id                 String   @id @default(uuid())
+  distribution_order_id String
+  token              String   @unique
+  expires_at         DateTime?
+  is_used            Boolean  @default(false)
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  distribution_order DistributionOrder @relation(fields: [distribution_order_id], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([distribution_order_id])
+  @@map("shared_links")
+}
+
+// DistributionReceipt represents a confirmed receipt of a distribution order
+model DistributionReceipt {
+  id                 String   @id @default(uuid())
+  distribution_order_id String
+  received_by        String?  // Name of person who received
+  received_at        DateTime
+  notes              String?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  distribution_order DistributionOrder @relation(fields: [distribution_order_id], references: [id], onDelete: Cascade)
+  receipt_items      DistributionReceiptItem[]
+
+  @@index([distribution_order_id])
+  @@map("distribution_receipts")
+}
+
+// DistributionReceiptItem represents a line item in a distribution receipt
+model DistributionReceiptItem {
+  id                    String   @id @default(uuid())
+  distribution_receipt_id String
+  product_variant_id    String
+  quantity_received      Int
+  created_at             DateTime @default(now())
+  updated_at             DateTime @updatedAt
+
+  distribution_receipt DistributionReceipt @relation(fields: [distribution_receipt_id], references: [id], onDelete: Cascade)
+  product_variant      ProductVariant     @relation(fields: [product_variant_id], references: [id], onDelete: Cascade)
+
+  @@index([distribution_receipt_id])
+  @@map("distribution_receipt_items")
+}
+
+// Sale represents a sale transaction at a location (store or route)
+model Sale {
+  id          String      @id @default(uuid())
+  company_id  String
+  campaign_id String
+  location_id String
+  user_id     String
+  sale_number String
+  sale_date   DateTime
+  channel     SaleChannel
+  customer_name String?
+  total       Decimal     @db.Decimal(10, 2)
+  notes       String?
+  created_at  DateTime    @default(now())
+  updated_at  DateTime    @updatedAt
+
+  company    Company   @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  campaign   Campaign  @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
+  location   Location  @relation(fields: [location_id], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  sale_items SaleItem[]
+  payments   Payment[]
+
+  @@unique([company_id, sale_number])
+  @@index([campaign_id])
+  @@index([location_id])
+  @@index([sale_date])
+  @@map("sales")
+}
+
+// SaleItem represents a line item in a sale
+model SaleItem {
+  id                String   @id @default(uuid())
+  sale_id           String
+  product_variant_id String
+  quantity          Int
+  unit_price        Decimal  @db.Decimal(10, 2)
+  subtotal          Decimal  @db.Decimal(10, 2)
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  sale            Sale           @relation(fields: [sale_id], references: [id], onDelete: Cascade)
+  product_variant ProductVariant @relation(fields: [product_variant_id], references: [id], onDelete: Cascade)
+
+  @@index([sale_id])
+  @@map("sale_items")
+}
+
+// Payment represents a payment recorded per location or seller within a Campaign
+model Payment {
+  id          String        @id @default(uuid())
+  company_id  String
+  campaign_id String
+  location_id String?
+  user_id     String?
+  sale_id     String?
+  method      PaymentMethod
+  amount      Decimal       @db.Decimal(10, 2)
+  payment_date DateTime
+  reference   String?
+  notes       String?
+  created_at  DateTime      @default(now())
+  updated_at  DateTime      @updatedAt
+
+  company   Company   @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  campaign  Campaign  @relation(fields: [campaign_id], references: [id], onDelete: Cascade)
+  location  Location? @relation(fields: [location_id], references: [id], onDelete: Cascade)
+  user      User?     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  sale      Sale?     @relation(fields: [sale_id], references: [id], onDelete: SetNull)
+
+  @@index([campaign_id])
+  @@index([location_id])
+  @@index([payment_date])
+  @@map("payments")
+}
+
