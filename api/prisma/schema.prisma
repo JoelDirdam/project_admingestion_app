@@ -56,6 +56,11 @@ enum PaymentMethod {
   CREDIT
 }
 
+enum Role {
+  ADMIN
+  USER
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -118,6 +123,9 @@ model Product {
   company_id  String
   name        String
   description String?
+  base_price  Decimal  @db.Decimal(10, 2) // Precio lista
+  price_1     Decimal  @db.Decimal(10, 2) // Precio 1 (típicamente 5% descuento)
+  price_2     Decimal  @db.Decimal(10, 2) // Precio 2 (típicamente 10% descuento)
   is_active   Boolean  @default(true)
   created_at  DateTime @default(now())
   updated_at  DateTime @updatedAt
@@ -202,16 +210,17 @@ model Location {
 
 // User represents system users (admins, managers, operators)
 model User {
-  id          String   @id @default(uuid())
-  company_id  String
-  email       String
-  password    String
-  first_name  String
-  last_name   String
-  role        String   @default("operator")
-  is_active   Boolean  @default(true)
-  created_at  DateTime @default(now())
-  updated_at  DateTime @updatedAt
+  id           String   @id @default(uuid())
+  company_id   String
+  username     String   @unique // Username sin espacios (e.g., "admin", "bodega_centro")
+  password_hash String  // Contraseña hasheada con bcrypt
+  first_name   String?
+  last_name    String?
+  email        String?
+  role         Role     @default(USER)
+  is_active    Boolean  @default(true)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
 
   company            Company             @relation(fields: [company_id], references: [id], onDelete: Cascade)
   production_batches ProductionBatch[]
@@ -220,8 +229,8 @@ model User {
   sales              Sale[]
   payments           Payment[]
 
-  @@unique([company_id, email])
   @@index([company_id])
+  @@index([username])
   @@map("users")
 }
 
