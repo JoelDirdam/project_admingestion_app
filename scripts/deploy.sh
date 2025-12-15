@@ -5,7 +5,7 @@
 
 set -e  # Salir si hay algún error
 
-PROJECT_DIR="/home/ubuntu/projects/project_admingestion_app"
+PROJECT_DIR="/projects/project_admingestion_app"
 API_DIR="$PROJECT_DIR/api"
 FRONTEND_DIR="$PROJECT_DIR/frontend"
 
