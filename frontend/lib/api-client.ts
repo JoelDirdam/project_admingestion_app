@@ -15,11 +15,27 @@ async function getAuthToken(): Promise<string | null> {
 async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = await getAuthToken()
 
-  const headers: HeadersInit = {
+  // Construir headers como un objeto Record para evitar problemas de tipo
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...options.headers,
   }
 
+  // Si hay headers en options, agregarlos
+  if (options.headers) {
+    if (options.headers instanceof Headers) {
+      options.headers.forEach((value, key) => {
+        headers[key] = value
+      })
+    } else if (Array.isArray(options.headers)) {
+      options.headers.forEach(([key, value]) => {
+        headers[key] = value
+      })
+    } else {
+      Object.assign(headers, options.headers)
+    }
+  }
+
+  // Agregar token de autorización si existe
   if (token) {
     headers["Authorization"] = `Bearer ${token}`
   }
