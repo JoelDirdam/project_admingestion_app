@@ -107,46 +107,60 @@ echo ""
 echo "10. Iniciando aplicaciones con PM2..."
 cd $PROJECT_DIR
 
-# Detener aplicaciones si ya están corriendo
-pm2 stop all 2>/dev/null || true
-pm2 delete all 2>/dev/null || true
-
-# Iniciar aplicaciones
-pm2 start ecosystem.config.js
-
-# Guardar configuración de PM2
-pm2 save
-
-# Configurar PM2 para iniciar al arrancar el sistema
-pm2 startup | tail -1 | bash || true
-
-echo "   ✓ Aplicaciones iniciadas con PM2"
-
-# 11. Mostrar estado
-echo ""
-echo "=========================================="
-echo "Despliegue completado"
-echo "=========================================="
-echo ""
-echo "Estado de las aplicaciones:"
-pm2 status
-echo ""
-echo "Para ver los logs:"
-echo "  - API: pm2 logs panaderia-api"
-echo "  - Frontend: pm2 logs panaderia-frontend"
-echo ""
-echo "Para reiniciar:"
-echo "  pm2 restart all"
-echo ""
-echo "Para detener:"
-echo "  pm2 stop all"
-echo ""
-
-# Obtener IP del servidor
-SERVER_IP=$(curl -s ifconfig.me || curl -s ipinfo.io/ip || hostname -I | awk '{print $1}')
-echo "Accede a la aplicación en:"
-echo "  Frontend: http://${SERVER_IP}:3001"
-echo "  API: http://${SERVER_IP}:3000"
-echo ""
-echo "⚠ IMPORTANTE: Asegúrate de abrir los puertos 3000 y 3001 en el firewall de AWS Lightsail"
+# Usar el script dedicado para iniciar PM2
+if [ -f "$PROJECT_DIR/scripts/start-pm2.sh" ]; then
+    chmod +x "$PROJECT_DIR/scripts/start-pm2.sh"
+    bash "$PROJECT_DIR/scripts/start-pm2.sh"
+else
+    echo "   ⚠ Script start-pm2.sh no encontrado, usando método básico..."
+    
+    # Verificar que el build del API existe
+    if [ ! -f "$API_DIR/dist/main.js" ]; then
+        echo "   ✗ Error: Build del API no encontrado. Ejecuta 'npm run build' en el directorio api/"
+        exit 1
+    fi
+    
+    # Detener aplicaciones si ya están corriendo
+    pm2 stop all 2>/dev/null || true
+    pm2 delete all 2>/dev/null || true
+    
+    # Iniciar aplicaciones
+    pm2 start ecosystem.config.js
+    
+    # Guardar configuración de PM2
+    pm2 save
+    
+    # Configurar PM2 para iniciar al arrancar el sistema
+    pm2 startup | tail -1 | bash || true
+    
+    echo "   ✓ Aplicaciones iniciadas con PM2"
+    
+    # Mostrar estado
+    echo ""
+    echo "=========================================="
+    echo "Despliegue completado"
+    echo "=========================================="
+    echo ""
+    echo "Estado de las aplicaciones:"
+    pm2 status
+    echo ""
+    echo "Para ver los logs:"
+    echo "  - API: pm2 logs panaderia-api"
+    echo "  - Frontend: pm2 logs panaderia-frontend"
+    echo ""
+    echo "Para reiniciar:"
+    echo "  pm2 restart all"
+    echo ""
+    echo "Para detener:"
+    echo "  pm2 stop all"
+    echo ""
+    
+    # Obtener IP del servidor
+    SERVER_IP=$(curl -s ifconfig.me || curl -s ipinfo.io/ip || hostname -I | awk '{print $1}')
+    echo "Accede a la aplicación en:"
+    echo "  Frontend: http://${SERVER_IP}:3001"
+    echo "  API: http://${SERVER_IP}:3000"
+    echo ""
+    echo "⚠ IMPORTANTE: Asegúrate de abrir los puertos 3000 y 3001 en el firewall de AWS Lightsail"
+fi
 
