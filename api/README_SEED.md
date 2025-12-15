@@ -159,3 +159,4 @@ Para cambiar la contraseña, puedes:
 - Verifica que `DATABASE_URL` esté configurado correctamente en `.env`
 - Asegúrate de que PostgreSQL esté corriendo
 
+
