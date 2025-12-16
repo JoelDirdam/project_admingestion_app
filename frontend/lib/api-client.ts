@@ -1,9 +1,21 @@
 // API Client helper que automáticamente adjunta el JWT a las peticiones
 
-// En producción con Nginx reverse proxy, usar ruta relativa /api/
-// En desarrollo, usar la URL completa del backend
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
-  (typeof window !== "undefined" ? "/api" : "http://localhost:3000")
+// Determinar la URL base de la API
+// En el cliente (navegador): SIEMPRE usar ruta relativa /api para que Nginx maneje el routing
+// En el servidor (SSR): usar la URL completa del backend para server-side rendering
+function getApiBaseUrl(): string {
+  // Si estamos en el servidor (SSR de Next.js), usar URL completa
+  if (typeof window === "undefined") {
+    return process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
+  }
+  
+  // Si estamos en el cliente (navegador), SIEMPRE usar ruta relativa
+  // Esto es crítico para que Nginx reverse proxy funcione correctamente
+  // Las rutas relativas se resuelven contra el mismo origen (sin puerto)
+  return "/api"
+}
+
+const API_BASE_URL = getApiBaseUrl()
 
 export interface ApiError {
   message: string
