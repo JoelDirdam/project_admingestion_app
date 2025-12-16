@@ -285,3 +285,4 @@ Y abre el puerto 80 en el firewall de Lightsail.
    sudo apt update && sudo apt upgrade -y
    ```
 
+

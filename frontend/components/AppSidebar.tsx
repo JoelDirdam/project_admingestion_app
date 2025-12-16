@@ -47,11 +47,11 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-50 w-64 transform border-r bg-card transition-transform duration-200 ease-in-out md:relative md:translate-x-0",
+          "fixed inset-y-0 left-0 z-50 w-64 transform border-r bg-card transition-transform duration-200 ease-in-out md:sticky md:top-0 md:h-screen md:translate-x-0",
           isOpen ? "translate-x-0" : "-translate-x-full",
         )}
       >
-        <div className="flex h-full flex-col">
+        <div className="flex h-full flex-col overflow-y-auto">
           {/* Mobile close button */}
           <div className="flex h-16 items-center justify-between border-b px-4 md:hidden">
             <span className="text-lg font-semibold">Menú</span>

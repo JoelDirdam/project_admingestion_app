@@ -25,11 +25,18 @@ export class ProductsService {
     });
   }
 
-  async findAll(companyId: string): Promise<Product[]> {
+  async findAll(companyId: string, includeInactive: boolean = false): Promise<Product[]> {
+    const where: any = {
+      company_id: companyId,
+    };
+
+    // Por defecto, solo mostrar productos activos
+    if (!includeInactive) {
+      where.is_active = true;
+    }
+
     return this.prisma.product.findMany({
-      where: {
-        company_id: companyId,
-      },
+      where,
       orderBy: {
         created_at: 'desc',
       },

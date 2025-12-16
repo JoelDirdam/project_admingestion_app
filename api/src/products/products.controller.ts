@@ -8,6 +8,7 @@ import {
   Delete,
   UseGuards,
   Request,
+  Query,
 } from '@nestjs/common';
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
@@ -32,9 +33,13 @@ export class ProductsController {
   }
 
   @Get()
-  findAll(@Request() req): Promise<Product[]> {
+  findAll(
+    @Request() req,
+    @Query('includeInactive') includeInactive?: string,
+  ): Promise<Product[]> {
     const companyId = req.user.companyId;
-    return this.productsService.findAll(companyId);
+    const includeInactiveBool = includeInactive === 'true';
+    return this.productsService.findAll(companyId, includeInactiveBool);
   }
 
   @Get(':id')

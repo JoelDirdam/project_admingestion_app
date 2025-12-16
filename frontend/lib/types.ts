@@ -38,3 +38,20 @@ export interface ProductionBatchPayload {
   date: string
   items: ProductionBatchItem[]
 }
+
+export interface ProductionSummaryItem {
+  date: string
+  totalUnits: number
+  batchCount: number
+}
+
+export interface ProductionByDateProduct {
+  productId: string
+  productName: string
+  quantityProduced: number
+}
+
+export interface ProductionByDateResponse {
+  date: string
+  products: ProductionByDateProduct[]
+}

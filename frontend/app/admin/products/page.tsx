@@ -22,7 +22,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, Edit, AlertCircle, CheckCircle2 } from "lucide-react"
+import { Plus, Edit, AlertCircle, CheckCircle2, Trash2 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Package } from "lucide-react" // Import the Package component
 
@@ -33,6 +33,9 @@ export default function ProductsPage() {
   const [showDialog, setShowDialog] = useState(false)
   const [editingProduct, setEditingProduct] = useState<Product | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const { toast } = useToast()
 
   const [formData, setFormData] = useState({
@@ -129,6 +132,35 @@ export default function ProductsPage() {
     })
   }
 
+  const handleDelete = (product: Product) => {
+    setProductToDelete(product)
+    setShowDeleteDialog(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!productToDelete) return
+
+    setIsDeleting(true)
+    try {
+      await apiClient.delete(`/products/${productToDelete.id}`)
+      toast({
+        title: "Producto eliminado",
+        description: `El producto "${productToDelete.name}" ha sido marcado como inactivo.`,
+      })
+      setShowDeleteDialog(false)
+      setProductToDelete(null)
+      loadProducts()
+    } catch (err: any) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: err.message || "Error al eliminar el producto",
+      })
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   return (
     <RoleGuard requireAdmin>
       <div className="container max-w-6xl py-8 px-4">
@@ -201,10 +233,21 @@ export default function ProductsPage() {
                           )}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Button variant="outline" size="sm" onClick={() => handleEdit(product)}>
-                            <Edit className="mr-2 h-3 w-3" />
-                            Editar
-                          </Button>
+                          <div className="flex items-center justify-center gap-2">
+                            <Button variant="outline" size="sm" onClick={() => handleEdit(product)}>
+                              <Edit className="mr-2 h-3 w-3" />
+                              Editar
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDelete(product)}
+                              className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                            >
+                              <Trash2 className="mr-2 h-3 w-3" />
+                              Eliminar
+                            </Button>
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -312,6 +355,52 @@ export default function ProductsPage() {
                 </Button>
               </DialogFooter>
             </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Diálogo de confirmación de eliminación */}
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-destructive">
+                <AlertCircle className="h-5 w-5" />
+                Confirmar Eliminación
+              </DialogTitle>
+              <DialogDescription>
+                ¿Estás seguro de que deseas eliminar el producto{" "}
+                <span className="font-semibold text-foreground">"{productToDelete?.name}"</span>?
+              </DialogDescription>
+            </DialogHeader>
+
+            {/* <Alert variant="destructive" className="mt-4">
+              <AlertDescription>
+                El producto será marcado como inactivo. Esta acción no eliminará los registros históricos
+                de producción o ventas asociados a este producto.
+              </AlertDescription>
+            </Alert>
+            */}
+
+            <DialogFooter className="mt-6">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowDeleteDialog(false)
+                  setProductToDelete(null)
+                }}
+                disabled={isDeleting}
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+              >
+                {isDeleting ? "Eliminando..." : "Eliminar"}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
