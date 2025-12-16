@@ -132,6 +132,11 @@ else
     
     # Configurar PM2 para iniciar al arrancar el sistema
     pm2 startup | tail -1 | bash || true
+
+    ## Freeze a process list on reboot via:
+    #pm2 save
+    ##! Remove init script via:
+    #pm2 unstartup systemd
     
     echo "   ✓ Aplicaciones iniciadas con PM2"
     

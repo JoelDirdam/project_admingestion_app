@@ -1,6 +1,9 @@
 // API Client helper que automáticamente adjunta el JWT a las peticiones
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000"
+// En producción con Nginx reverse proxy, usar ruta relativa /api/
+// En desarrollo, usar la URL completa del backend
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 
+  (typeof window !== "undefined" ? "/api" : "http://localhost:3000")
 
 export interface ApiError {
   message: string
