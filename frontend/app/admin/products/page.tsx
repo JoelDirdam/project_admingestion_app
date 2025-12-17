@@ -368,7 +368,7 @@ export default function ProductsPage() {
               </DialogTitle>
               <DialogDescription>
                 ¿Estás seguro de que deseas eliminar el producto{" "}
-                <span className="font-semibold text-foreground">"{productToDelete?.name}"</span>?
+                <span className="font-semibold text-foreground">&quot;{productToDelete?.name}&quot;</span>?
               </DialogDescription>
             </DialogHeader>
 
