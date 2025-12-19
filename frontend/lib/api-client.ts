@@ -42,6 +42,7 @@ async function getAuthToken(): Promise<string | null> {
 
 async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = await getAuthToken()
+  const isDev = process.env.NODE_ENV === 'development'
 
   // Construir headers como un objeto Record para evitar problemas de tipo
   const headers: Record<string, string> = {
@@ -68,40 +69,98 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
     headers["Authorization"] = `Bearer ${token}`
   }
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
-    ...options,
-    headers,
-  })
-
-  if (response.status === 401) {
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("authToken")
-      localStorage.removeItem("user")
-      window.location.href = "/login"
-    }
-    throw {
-      message: "Sesión expirada. Por favor, inicia sesión nuevamente.",
-      statusCode: 401,
-    }
+  const url = `${API_BASE_URL}${endpoint}`
+  
+  // Log en desarrollo para debugging
+  if (isDev) {
+    console.log(`[API Request] ${options.method || 'GET'} ${url}`)
   }
 
-  if (!response.ok) {
-    const error: ApiError = {
-      message: "Error en la petición",
-      statusCode: response.status,
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    })
+
+    if (response.status === 401) {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("authToken")
+        localStorage.removeItem("user")
+        window.location.href = "/login"
+      }
+      const error = {
+        message: "Sesión expirada. Por favor, inicia sesión nuevamente.",
+        statusCode: 401,
+      }
+      if (isDev) {
+        console.error('[API Error]', error)
+      }
+      throw error
     }
 
-    try {
-      const errorData = await response.json()
-      error.message = errorData.message || error.message
-    } catch {
-      // Si no se puede parsear el error, usar el mensaje por defecto
+    if (!response.ok) {
+      const error: ApiError = {
+        message: "Error en la petición",
+        statusCode: response.status,
+      }
+
+      try {
+        const errorData = await response.json()
+        error.message = errorData.message || error.message
+        
+        // Log detallado en desarrollo
+        if (isDev) {
+          console.error('[API Error]', {
+            endpoint,
+            status: response.status,
+            statusText: response.statusText,
+            error: errorData,
+          })
+        }
+      } catch {
+        // Si no se puede parsear el error, usar el mensaje por defecto
+        if (isDev) {
+          console.error('[API Error]', {
+            endpoint,
+            status: response.status,
+            statusText: response.statusText,
+            message: 'No se pudo parsear la respuesta de error',
+          })
+        }
+      }
+
+      throw error
     }
 
+    const data = await response.json()
+    
+    // Log exitoso en desarrollo (opcional, comentado para no saturar)
+    // if (isDev) {
+    //   console.log(`[API Success] ${options.method || 'GET'} ${endpoint}`)
+    // }
+    
+    return data
+  } catch (error: any) {
+    // Si es un error de red o conexión
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      const networkError: ApiError = {
+        message: `Error de conexión: No se pudo conectar con el servidor en ${API_BASE_URL}`,
+        statusCode: 0,
+      }
+      if (isDev) {
+        console.error('[API Network Error]', {
+          endpoint,
+          url,
+          error: error.message,
+          suggestion: 'Verifica que el servidor backend esté corriendo',
+        })
+      }
+      throw networkError
+    }
+    
+    // Re-lanzar otros errores
     throw error
   }
-
-  return response.json()
 }
 
 export const apiClient = {

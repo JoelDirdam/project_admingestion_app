@@ -7,6 +7,10 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
 import { ProductsModule } from './products/products.module';
 import { ProductionBatchesModule } from './production-batches/production-batches.module';
+import { UsersModule } from './users/users.module';
+import { WarehouseModule } from './warehouse/warehouse.module';
+import { NotificationsModule } from './notifications/notifications.module';
+import { LocationsModule } from './locations/locations.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -18,6 +22,10 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     AuthModule,
     ProductsModule,
     ProductionBatchesModule,
+    UsersModule,
+    WarehouseModule,
+    NotificationsModule,
+    LocationsModule,
   ],
   controllers: [AppController],
   providers: [

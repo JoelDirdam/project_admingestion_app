@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Home, Package, ClipboardList, X } from "lucide-react"
+import { Home, Package, ClipboardList, Warehouse, UserPlus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { auth } from "@/lib/auth"
 
@@ -18,26 +18,67 @@ const navItems = [
     href: "/admin",
     icon: Home,
     adminOnly: false,
+    warehouseAccess: true,
+    exactMatch: true, // Solo activo en la ruta exacta
   },
   {
     title: "Productos",
     href: "/admin/products",
     icon: Package,
     adminOnly: true,
+    warehouseAccess: false,
   },
   {
     title: "Producción",
     href: "/admin/production",
     icon: ClipboardList,
     adminOnly: true,
+    warehouseAccess: false,
+  },
+  {
+    title: "Almacén",
+    href: "/warehouse",
+    icon: Warehouse,
+    adminOnly: false,
+    warehouseAccess: true,
+  },
+]
+
+const adminOnlyItems = [
+  {
+    title: "Usuarios",
+    href: "/admin/users",
+    icon: UserPlus,
+    adminOnly: true,
+    warehouseAccess: false,
   },
 ]
 
 export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const pathname = usePathname()
   const isAdmin = auth.isAdmin()
+  const hasWarehouseAccess = auth.hasWarehouseAccess()
 
-  const filteredNavItems = navItems.filter((item) => !item.adminOnly || isAdmin)
+  const filteredNavItems = navItems.filter((item) => {
+    if (item.adminOnly && !isAdmin) return false
+    if (item.warehouseAccess && !hasWarehouseAccess) return false
+    return true
+  })
+
+  const filteredAdminItems = adminOnlyItems.filter((item) => {
+    if (item.adminOnly && !isAdmin) return false
+    if (item.warehouseAccess && !hasWarehouseAccess) return false
+    return true
+  })
+
+  const isItemActive = (item: { href: string; exactMatch?: boolean }) => {
+    // Si tiene exactMatch, solo activo en la ruta exacta
+    if (item.exactMatch) {
+      return pathname === item.href
+    }
+    // Para otros items, activo si coincide o es subruta
+    return pathname === item.href || pathname.startsWith(item.href + "/")
+  }
 
   return (
     <>
@@ -64,7 +105,7 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
           <nav className="flex-1 space-y-1 p-4">
             {filteredNavItems.map((item) => {
               const Icon = item.icon
-              const isActive = pathname === item.href
+              const isActive = isItemActive(item)
 
               return (
                 <Link
@@ -83,6 +124,34 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
                 </Link>
               )
             })}
+
+            {/* Separador para opciones de administración */}
+            {filteredAdminItems.length > 0 && (
+              <>
+                <div className="my-4 border-t" />
+                {filteredAdminItems.map((item) => {
+                  const Icon = item.icon
+                  const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={onClose}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                      )}
+                    >
+                      <Icon className="h-5 w-5" />
+                      {item.title}
+                    </Link>
+                  )
+                })}
+              </>
+            )}
           </nav>
 
           {/* Footer */}

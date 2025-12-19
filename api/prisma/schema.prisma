@@ -59,6 +59,7 @@ enum PaymentMethod {
 enum Role {
   ADMIN
   USER
+  WAREHOUSE
 }
 
 // ============================================
@@ -87,6 +88,7 @@ model Company {
   distribution_orders  DistributionOrder[]
   sales                Sale[]
   payments             Payment[]
+  warehouse_receipts   WarehouseReceipt[]
 
   @@map("companies")
 }
@@ -111,6 +113,7 @@ model Campaign {
   distribution_orders DistributionOrder[]
   sales               Sale[]
   payments            Payment[]
+  warehouse_receipts  WarehouseReceipt[]
 
   @@index([company_id])
   @@index([status])
@@ -153,9 +156,10 @@ model ProductVariant {
   price_configs PriceConfig[]
   batch_items   ProductionBatchItem[]
   movement_items InventoryMovementItem[]
-  order_items   DistributionOrderItem[]
-  receipt_items DistributionReceiptItem[]
-  sale_items    SaleItem[]
+  order_items          DistributionOrderItem[]
+  receipt_items        DistributionReceiptItem[]
+  sale_items           SaleItem[]
+  warehouse_receipt_items WarehouseReceiptItem[]
 
   @@index([product_id])
   @@index([sku])
@@ -202,6 +206,8 @@ model Location {
   distribution_orders_to   DistributionOrder[]  @relation("LocationTo")
   sales                   Sale[]
   payments                Payment[]
+  warehouse_receipts      WarehouseReceipt[]
+  users                   User[]
 
   @@index([company_id])
   @@index([type])
@@ -218,19 +224,24 @@ model User {
   last_name    String?
   email        String?
   role         Role     @default(USER)
+  location_id  String?  // Optional: associate user to a specific warehouse location
   is_active    Boolean  @default(true)
   created_at   DateTime @default(now())
   updated_at   DateTime @updatedAt
 
   company            Company             @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  location           Location?           @relation(fields: [location_id], references: [id], onDelete: SetNull)
   production_batches ProductionBatch[]
   inventory_movements InventoryMovement[]
   distribution_orders DistributionOrder[]
   sales              Sale[]
   payments           Payment[]
+  warehouse_receipts WarehouseReceipt[]
+  notifications      Notification[]
 
   @@index([company_id])
   @@index([username])
+  @@index([location_id])
   @@map("users")
 }
 
@@ -498,5 +509,71 @@ model Payment {
   @@index([location_id])
   @@index([payment_date])
   @@map("payments")
+}
+
+// WarehouseReceipt represents a receipt of products at a warehouse location
+model WarehouseReceipt {
+  id                String   @id @default(uuid())
+  company_id        String
+  campaign_id       String?
+  location_id       String
+  user_id           String   // The warehouse user or admin who recorded this
+  receipt_date      DateTime // The production/receiving date
+  confirmed         Boolean  @default(false)
+  confirmed_at      DateTime?
+  confirmed_by_name String?  // Full name typed during confirmation
+  notes             String?
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  company         Company                @relation(fields: [company_id], references: [id], onDelete: Cascade)
+  campaign        Campaign?             @relation(fields: [campaign_id], references: [id], onDelete: SetNull)
+  location        Location              @relation(fields: [location_id], references: [id], onDelete: Cascade)
+  user            User                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  receipt_items   WarehouseReceiptItem[]
+
+  @@index([company_id])
+  @@index([campaign_id])
+  @@index([location_id])
+  @@index([user_id])
+  @@index([receipt_date])
+  @@index([confirmed])
+  @@map("warehouse_receipts")
+}
+
+// WarehouseReceiptItem represents a line item in a warehouse receipt
+model WarehouseReceiptItem {
+  id                  String   @id @default(uuid())
+  warehouse_receipt_id String
+  product_variant_id  String
+  quantity_received   Int
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  warehouse_receipt WarehouseReceipt @relation(fields: [warehouse_receipt_id], references: [id], onDelete: Cascade)
+  product_variant   ProductVariant    @relation(fields: [product_variant_id], references: [id], onDelete: Cascade)
+
+  @@index([warehouse_receipt_id])
+  @@index([product_variant_id])
+  @@map("warehouse_receipt_items")
+}
+
+// Notification represents in-app notifications for users (typically admins)
+model Notification {
+  id        String   @id @default(uuid())
+  user_id  String   // Who will see the notification
+  type      String   // e.g., "WAREHOUSE_RECEIPT_CONFIRMED"
+  payload   Json     // JSON containing date, location, user, etc.
+  read      Boolean  @default(false)
+  read_at   DateTime?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  user     User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([read])
+  @@index([created_at])
+  @@map("notifications")
 }
 

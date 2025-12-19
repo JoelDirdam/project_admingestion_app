@@ -209,3 +209,6 @@ echo "⚠ IMPORTANTE: Asegúrate de abrir los puertos 3000 y 3001 en el firewall
 echo ""
 
 
+
+
+

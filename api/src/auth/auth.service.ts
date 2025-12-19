@@ -50,6 +50,7 @@ export class AuthService {
         id: user.id,
         username: user.username,
         role: user.role,
+        location_id: user.location_id || undefined,
       },
     };
   }

@@ -52,3 +52,6 @@ echo "DATABASE_URL que debes usar en tu .env:"
 echo "postgresql://postgres:${POSTGRES_PASSWORD}@localhost:5432/panaderia_la_paz?schema=public"
 
 
+
+
+

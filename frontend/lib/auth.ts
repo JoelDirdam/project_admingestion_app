@@ -4,6 +4,7 @@ export interface User {
   id: string
   username: string
   role: string
+  location_id?: string
 }
 
 export interface AuthResponse {
@@ -46,6 +47,18 @@ export const auth = {
   isAdmin: (): boolean => {
     const user = auth.getUser()
     return user?.role === "ADMIN"
+  },
+
+  // Verificar si es warehouse
+  isWarehouse: (): boolean => {
+    const user = auth.getUser()
+    return user?.role === "WAREHOUSE"
+  },
+
+  // Verificar si tiene permisos de almacén (WAREHOUSE o ADMIN)
+  hasWarehouseAccess: (): boolean => {
+    const user = auth.getUser()
+    return user?.role === "WAREHOUSE" || user?.role === "ADMIN"
   },
 
   // Cerrar sesión

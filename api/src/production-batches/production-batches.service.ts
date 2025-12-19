@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateProductionBatchDto } from './dto/create-production-batch.dto';
 import { Prisma } from '@prisma/client';
+import { parseLocalDate, getDateRange } from '../common/utils/date.utils';
 
 @Injectable()
 export class ProductionBatchesService {
@@ -54,13 +55,14 @@ export class ProductionBatchesService {
     }
 
     // Generar número de lote único
-    const dateStr = new Date(createProductionBatchDto.date).toISOString().split('T')[0].replace(/-/g, '');
+    const dateStr = createProductionBatchDto.date.replace(/-/g, '');
+    const { start, end } = getDateRange(createProductionBatchDto.date);
     const batchCount = await this.prisma.productionBatch.count({
       where: {
         company_id: companyId,
         production_date: {
-          gte: new Date(createProductionBatchDto.date),
-          lt: new Date(new Date(createProductionBatchDto.date).getTime() + 24 * 60 * 60 * 1000),
+          gte: start,
+          lte: end,
         },
       },
     });
@@ -109,7 +111,7 @@ export class ProductionBatchesService {
         location_id: productionLocation.id,
         user_id: userId,
         batch_number: batchNumber,
-        production_date: new Date(createProductionBatchDto.date),
+        production_date: parseLocalDate(createProductionBatchDto.date),
         batch_items: {
           create: batchItemsData,
         },
@@ -139,11 +141,15 @@ export class ProductionBatchesService {
     const defaultFromDate = new Date();
     defaultFromDate.setDate(defaultFromDate.getDate() - 30);
 
-    const from = fromDate ? new Date(fromDate) : defaultFromDate;
-    const to = toDate ? new Date(toDate) : defaultToDate;
-
-    // Asegurar que 'to' incluya todo el día
-    to.setHours(23, 59, 59, 999);
+    const from = fromDate ? parseLocalDate(fromDate) : defaultFromDate;
+    let to: Date;
+    if (toDate) {
+      to = parseLocalDate(toDate);
+      to.setHours(23, 59, 59, 999);
+    } else {
+      to = defaultToDate;
+      to.setHours(23, 59, 59, 999);
+    }
 
     const where: any = {
       company_id: companyId,
@@ -192,7 +198,12 @@ export class ProductionBatchesService {
     const summaryByDate: Record<string, { date: string; totalUnits: number; batchCount: number }> = {};
 
     batches.forEach((batch) => {
-      const dateKey = batch.production_date.toISOString().split('T')[0];
+      // Formatear la fecha como YYYY-MM-DD en zona horaria local
+      const date = new Date(batch.production_date);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      const dateKey = `${year}-${month}-${day}`;
 
       if (!summaryByDate[dateKey]) {
         summaryByDate[dateKey] = {
@@ -216,11 +227,7 @@ export class ProductionBatchesService {
   }
 
   async getByDate(companyId: string, date: string, campaignId?: string) {
-    const targetDate = new Date(date);
-    const startOfDay = new Date(targetDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(targetDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    const { start: startOfDay, end: endOfDay } = getDateRange(date);
 
     const where: any = {
       company_id: companyId,

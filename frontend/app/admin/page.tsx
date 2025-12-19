@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Package, ClipboardList } from "lucide-react"
+import { Package, ClipboardList, Warehouse, BarChart3, UserPlus } from "lucide-react"
 import Link from "next/link"
 
 export default function AdminPage() {
@@ -58,6 +58,66 @@ export default function AdminPage() {
                 </CardHeader>
               </Card>
             </Link>
+
+            <Link href="/warehouse" className="group">
+              <Card className="transition-all hover:shadow-lg hover:border-primary">
+                <CardHeader>
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <Warehouse className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1">
+                      <CardTitle className="group-hover:text-primary transition-colors">
+                        Almacén
+                      </CardTitle>
+                      <CardDescription className="mt-1.5">
+                        Gestionar recepciones de almacén y comparar con producción
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
+            </Link>
+
+            <Link href="/admin/warehouse-comparison" className="group">
+              <Card className="transition-all hover:shadow-lg hover:border-primary">
+                <CardHeader>
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <BarChart3 className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1">
+                      <CardTitle className="group-hover:text-primary transition-colors">
+                        Comparación Producción vs Almacén
+                      </CardTitle>
+                      <CardDescription className="mt-1.5">
+                        Comparar lo producido con lo recibido en almacén por fecha
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
+            </Link>
+
+            <Link href="/admin/users" className="group">
+              <Card className="transition-all hover:shadow-lg hover:border-primary">
+                <CardHeader>
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <UserPlus className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1">
+                      <CardTitle className="group-hover:text-primary transition-colors">
+                        Gestión de Usuarios
+                      </CardTitle>
+                      <CardDescription className="mt-1.5">
+                        Crear y administrar usuarios del sistema (Almacén, Admin, etc.)
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
+            </Link>
           </>
         )}
 
@@ -76,5 +136,3 @@ export default function AdminPage() {
     </div>
   )
 }
-
-

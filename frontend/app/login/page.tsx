@@ -18,6 +18,7 @@ interface LoginResponse {
     id: string
     username: string
     role: string
+    location_id?: string
   }
 }
 

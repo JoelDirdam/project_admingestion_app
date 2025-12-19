@@ -1,7 +1,7 @@
 export interface User {
   id: string
   username: string
-  role: "ADMIN" | "USER"
+  role: "ADMIN" | "USER" | "WAREHOUSE"
 }
 
 export interface AuthResponse {

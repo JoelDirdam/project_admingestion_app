@@ -167,7 +167,7 @@ export default function ProductsPage() {
         <div className="mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Gestión de Productos</h1>
-            <p className="mt-2 text-muted-foreground">Administrar productos (Roscas) y sus precios</p>
+            <p className="mt-2 text-muted-foreground">Administrar productos y sus precios</p>
           </div>
           <Button onClick={handleNew}>
             <Plus className="mr-2 h-4 w-4" />
@@ -368,7 +368,7 @@ export default function ProductsPage() {
               </DialogTitle>
               <DialogDescription>
                 ¿Estás seguro de que deseas eliminar el producto{" "}
-                <span className="font-semibold text-foreground">"{productToDelete?.name}"</span>?
+                <span className="font-semibold text-foreground">&quot;{productToDelete?.name}&quot;</span>?
               </DialogDescription>
             </DialogHeader>
 

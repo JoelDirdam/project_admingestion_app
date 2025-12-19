@@ -21,7 +21,9 @@ export function ProductionDetail({
   error,
 }: ProductionDetailProps) {
   const formatDate = (dateString: string): string => {
-    const date = new Date(dateString)
+    // Parsear la fecha como fecha local para evitar problemas de zona horaria
+    const [year, month, day] = dateString.split('-').map(Number)
+    const date = new Date(year, month - 1, day)
     const options: Intl.DateTimeFormatOptions = {
       weekday: "long",
       year: "numeric",
@@ -135,4 +137,7 @@ export function ProductionDetail({
     </Card>
   )
 }
+
+
+
 

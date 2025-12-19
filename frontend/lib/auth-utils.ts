@@ -61,13 +61,20 @@ export function getRedirectPathForUser(user: User | null): string {
     return '/login';
   }
 
-  // Por ahora todos van a /admin, pero puedes personalizar según el rol
+  // Redirigir según el rol
   if (user.role === 'ADMIN' || user.role === 'USER') {
     return '/admin';
   }
 
+  if (user.role === 'WAREHOUSE') {
+    return '/warehouse';
+  }
+
   return '/login';
 }
+
+
+
 
 
 
