@@ -28,13 +28,27 @@ function SellerDashboardContent() {
   }, [user])
 
   const loadBranch = async () => {
-    if (!user?.location_id) return
+    if (!user?.location_id) {
+      setIsLoading(false)
+      return
+    }
 
     try {
+      // Intentar obtener la sucursal específica
       const data = await apiClient.get<Branch>(`/branches/${user.location_id}`)
       setBranch(data)
     } catch (error: any) {
       console.error('Error al cargar información de la sucursal:', error)
+      // Si falla, intentar obtener todas las sucursales y filtrar
+      try {
+        const branches = await apiClient.get<Branch[]>('/branches')
+        const userBranch = branches.find(b => b.id === user.location_id)
+        if (userBranch) {
+          setBranch(userBranch)
+        }
+      } catch (fallbackError: any) {
+        console.error('Error al cargar sucursales (fallback):', fallbackError)
+      }
     } finally {
       setIsLoading(false)
     }

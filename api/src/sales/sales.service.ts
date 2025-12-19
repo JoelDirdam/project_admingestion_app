@@ -87,45 +87,68 @@ export class SalesService {
     }
 
     // Generar número de venta único
-    const dateStr = new Date(createSaleDto.sale_date).toISOString().split('T')[0].replace(/-/g, '');
+    const saleDate = new Date(createSaleDto.sale_date);
+    if (isNaN(saleDate.getTime())) {
+      throw new BadRequestException('Fecha de venta inválida');
+    }
+    
+    const dateStr = saleDate.toISOString().split('T')[0].replace(/-/g, '');
+    const startOfDay = new Date(saleDate);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(saleDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    
     const saleCount = await this.prisma.sale.count({
       where: {
         company_id: companyId,
         sale_date: {
-          gte: new Date(createSaleDto.sale_date + 'T00:00:00'),
-          lte: new Date(createSaleDto.sale_date + 'T23:59:59'),
+          gte: startOfDay,
+          lte: endOfDay,
         },
       },
     });
     const saleNumber = `SALE-${dateStr}-${String(saleCount + 1).padStart(4, '0')}`;
 
-    // Calcular total
+    // Calcular total - asegurar que los valores sean números
     const total = createSaleDto.items.reduce((sum, item) => {
-      return sum + (item.unit_price * item.quantity);
+      const quantity = Number(item.quantity);
+      const unitPrice = Number(item.unit_price);
+      if (isNaN(quantity) || isNaN(unitPrice)) {
+        throw new BadRequestException('Cantidad o precio unitario inválido');
+      }
+      return sum + (unitPrice * quantity);
     }, 0);
 
     // Crear la venta con sus items
-    return this.prisma.sale.create({
-      data: {
-        company_id: companyId,
-        campaign_id: activeCampaign.id,
-        location_id: locationId,
-        user_id: userId,
-        sale_number: saleNumber,
-        sale_date: new Date(createSaleDto.sale_date),
-        channel: createSaleDto.channel,
-        customer_name: createSaleDto.customer_name,
-        total: total,
-        notes: createSaleDto.notes,
-        sale_items: {
-          create: createSaleDto.items.map(item => ({
-            product_variant_id: item.product_variant_id,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            subtotal: item.unit_price * item.quantity,
-          })),
+    try {
+      return await this.prisma.sale.create({
+        data: {
+          company_id: companyId,
+          campaign_id: activeCampaign.id,
+          location_id: locationId,
+          user_id: userId,
+          sale_number: saleNumber,
+          sale_date: saleDate,
+          channel: createSaleDto.channel,
+          customer_name: createSaleDto.customer_name || null,
+          total: total,
+          notes: createSaleDto.notes || null,
+          sale_items: {
+            create: createSaleDto.items.map(item => {
+              const quantity = Number(item.quantity);
+              const unitPrice = Number(item.unit_price);
+              if (isNaN(quantity) || isNaN(unitPrice)) {
+                throw new BadRequestException('Cantidad o precio unitario inválido en los items');
+              }
+              return {
+                product_variant_id: item.product_variant_id,
+                quantity: quantity,
+                unit_price: unitPrice,
+                subtotal: unitPrice * quantity,
+              };
+            }),
+          },
         },
-      },
       include: {
         sale_items: {
           include: {
@@ -152,7 +175,14 @@ export class SalesService {
           },
         },
       },
-    });
+      });
+    } catch (error) {
+      console.error('Error al crear venta en Prisma:', error);
+      if (error.code === 'P2002') {
+        throw new BadRequestException('Ya existe una venta con este número');
+      }
+      throw error;
+    }
   }
 
   async findAll(companyId: string, userId?: string, locationId?: string, userRole?: string) {

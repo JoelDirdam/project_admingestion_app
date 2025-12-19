@@ -31,13 +31,13 @@ export class BranchesController {
   }
 
   @Get()
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SELLER)
   async findAll(@Request() req) {
     return this.branchesService.findAll(req.user.companyId);
   }
 
   @Get(':id')
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.SELLER)
   async findOne(@Param('id') id: string, @Request() req) {
     return this.branchesService.findOne(id, req.user.companyId);
   }

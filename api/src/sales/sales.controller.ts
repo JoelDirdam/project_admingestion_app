@@ -28,21 +28,30 @@ export class SalesController {
   @UseGuards(RolesGuard)
   @Roles(Role.SELLER, Role.ADMIN)
   async create(@Body() createSaleDto: CreateSaleDto, @Request() req) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: req.user.userId },
-      select: {
-        id: true,
-        location_id: true,
-      },
-    });
-    
-    return this.salesService.create(
-      createSaleDto,
-      req.user.companyId,
-      req.user.userId,
-      req.user.role,
-      user?.location_id || undefined,
-    );
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { id: req.user.userId },
+        select: {
+          id: true,
+          location_id: true,
+        },
+      });
+
+      if (!user) {
+        throw new Error('Usuario no encontrado');
+      }
+      
+      return await this.salesService.create(
+        createSaleDto,
+        req.user.companyId,
+        req.user.userId,
+        req.user.role,
+        user.location_id || undefined,
+      );
+    } catch (error) {
+      console.error('Error al crear venta:', error);
+      throw error;
+    }
   }
 
   @Get('campaigns/active')

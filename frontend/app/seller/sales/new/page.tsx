@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { apiClient } from '@/lib/api-client'
 import { auth } from '@/lib/auth'
@@ -60,6 +60,13 @@ function NewSaleContent() {
 
   const [items, setItems] = useState<SaleItemForm[]>([])
 
+  // Calcular el nombre de la sucursal del seller
+  const sellerBranchName = useMemo(() => {
+    if (!isSeller || !user?.location_id) return ''
+    const branch = branches.find(b => b.id === user.location_id)
+    return branch?.name || ''
+  }, [isSeller, user?.location_id, branches])
+
   useEffect(() => {
     loadData()
   }, [])
@@ -86,15 +93,27 @@ function NewSaleContent() {
       setProductVariants(variants)
 
       // Cargar sucursales (necesario tanto para admin como para mostrar nombre al seller)
-      const branchesData = await apiClient.get<Branch[]>('/branches')
-      setBranches(branchesData)
+      try {
+        const branchesData = await apiClient.get<Branch[]>('/branches')
+        setBranches(branchesData)
 
-      if (isAdmin) {
-        // Si es admin y no hay location_id seleccionado, usar la primera sucursal
-        if (!formData.location_id && branchesData.length > 0) {
-          setFormData(prev => ({ ...prev, location_id: branchesData[0].id }))
+        if (isAdmin) {
+          // Si es admin y no hay location_id seleccionado, usar la primera sucursal
+          if (!formData.location_id && branchesData.length > 0) {
+            setFormData(prev => ({ ...prev, location_id: branchesData[0].id }))
+          }
         }
-      } else if (isSeller && !user?.location_id) {
+      } catch (branchError: any) {
+        // Si falla la carga de sucursales, mostrar error pero continuar
+        console.error('Error al cargar sucursales:', branchError)
+        toast({
+          title: 'Advertencia',
+          description: 'No se pudieron cargar las sucursales. Algunas funciones pueden estar limitadas.',
+          variant: 'destructive',
+        })
+      }
+
+      if (isSeller && !user?.location_id) {
         // Si es seller sin sucursal asignada, mostrar error
         toast({
           title: 'Error',
@@ -180,12 +199,19 @@ function NewSaleContent() {
     try {
       setIsSubmitting(true)
 
+      // Preparar datos de la venta
       const saleData: CreateSaleDto = {
-        ...formData,
+        sale_date: formData.sale_date,
+        channel: formData.channel,
+        customer_name: formData.customer_name || undefined,
+        notes: formData.notes || undefined,
+        // Para sellers, no enviar location_id (el backend lo obtiene del usuario)
+        // Para admins, enviar location_id si está seleccionado
+        location_id: isAdmin ? (formData.location_id || undefined) : undefined,
         items: items.map(item => ({
           product_variant_id: item.product_variant_id,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
+          quantity: Number(item.quantity),
+          unit_price: Number(item.unit_price),
         })),
       }
 
@@ -274,7 +300,7 @@ function NewSaleContent() {
                 <div className="space-y-2">
                   <Label>Sucursal</Label>
                   <Input
-                    value={branches.find(b => b.id === user.location_id)?.name || user.location_id}
+                    value={sellerBranchName || 'Cargando...'}
                     disabled
                     className="bg-muted"
                   />
