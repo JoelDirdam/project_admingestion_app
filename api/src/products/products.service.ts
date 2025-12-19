@@ -88,5 +88,60 @@ export class ProductsService {
       data: { is_active: false },
     });
   }
+
+  async getProductVariantsWithPrices(companyId: string) {
+    // Obtener campaña activa
+    const activeCampaign = await this.prisma.campaign.findFirst({
+      where: {
+        company_id: companyId,
+        status: 'ACTIVE',
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+
+    if (!activeCampaign) {
+      return [];
+    }
+
+    // Obtener todas las variantes de productos activos con sus precios de la campaña
+    return this.prisma.productVariant.findMany({
+      where: {
+        is_active: true,
+        product: {
+          company_id: companyId,
+          is_active: true,
+        },
+      },
+      include: {
+        product: {
+          select: {
+            id: true,
+            name: true,
+            base_price: true,
+            price_1: true,
+            price_2: true,
+          },
+        },
+        price_configs: {
+          where: {
+            campaign_id: activeCampaign.id,
+            is_active: true,
+          },
+          select: {
+            id: true,
+            price: true,
+            cost: true,
+          },
+        },
+      },
+      orderBy: {
+        product: {
+          name: 'asc',
+        },
+      },
+    });
+  }
 }
 

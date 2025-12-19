@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Home, Package, ClipboardList, Warehouse, UserPlus, X } from "lucide-react"
+import { Home, Package, ClipboardList, Warehouse, UserPlus, Store, ShoppingBag, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { auth } from "@/lib/auth"
 
@@ -19,7 +19,8 @@ const navItems = [
     icon: Home,
     adminOnly: false,
     warehouseAccess: true,
-    exactMatch: true, // Solo activo en la ruta exacta
+    sellerAccess: false,
+    exactMatch: true,
   },
   {
     title: "Productos",
@@ -27,6 +28,7 @@ const navItems = [
     icon: Package,
     adminOnly: true,
     warehouseAccess: false,
+    sellerAccess: false,
   },
   {
     title: "Producción",
@@ -34,6 +36,7 @@ const navItems = [
     icon: ClipboardList,
     adminOnly: true,
     warehouseAccess: false,
+    sellerAccess: false,
   },
   {
     title: "Almacén",
@@ -41,6 +44,23 @@ const navItems = [
     icon: Warehouse,
     adminOnly: false,
     warehouseAccess: true,
+    sellerAccess: false,
+  },
+  {
+    title: "Sucursales",
+    href: "/admin/branches",
+    icon: Store,
+    adminOnly: true,
+    warehouseAccess: false,
+    sellerAccess: false,
+  },
+  {
+    title: "Ventas",
+    href: "/admin/sales",
+    icon: ShoppingBag,
+    adminOnly: true,
+    warehouseAccess: false,
+    sellerAccess: false,
   },
 ]
 
@@ -57,11 +77,13 @@ const adminOnlyItems = [
 export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
   const pathname = usePathname()
   const isAdmin = auth.isAdmin()
+  const isSeller = auth.isSeller()
   const hasWarehouseAccess = auth.hasWarehouseAccess()
 
   const filteredNavItems = navItems.filter((item) => {
     if (item.adminOnly && !isAdmin) return false
     if (item.warehouseAccess && !hasWarehouseAccess) return false
+    if (item.sellerAccess && !isSeller) return false
     return true
   })
 
@@ -70,6 +92,21 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
     if (item.warehouseAccess && !hasWarehouseAccess) return false
     return true
   })
+
+  // Items específicos para sellers
+  const sellerItems = [
+    {
+      title: "Inicio",
+      href: "/seller",
+      icon: Home,
+      exactMatch: true,
+    },
+    {
+      title: "Ventas",
+      href: "/seller/sales",
+      icon: ShoppingBag,
+    },
+  ]
 
   const isItemActive = (item: { href: string; exactMatch?: boolean }) => {
     // Si tiene exactMatch, solo activo en la ruta exacta
@@ -132,6 +169,36 @@ export function AppSidebar({ isOpen, onClose }: AppSidebarProps) {
                 {filteredAdminItems.map((item) => {
                   const Icon = item.icon
                   const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={onClose}
+                      className={cn(
+                        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                        isActive
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+                      )}
+                    >
+                      <Icon className="h-5 w-5" />
+                      {item.title}
+                    </Link>
+                  )
+                })}
+              </>
+            )}
+
+            {/* Items para sellers */}
+            {isSeller && !isAdmin && (
+              <>
+                <div className="my-4 border-t" />
+                {sellerItems.map((item) => {
+                  const Icon = item.icon
+                  const isActive = item.exactMatch 
+                    ? pathname === item.href
+                    : pathname === item.href || pathname.startsWith(item.href + "/")
 
                   return (
                     <Link

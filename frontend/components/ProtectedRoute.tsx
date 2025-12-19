@@ -8,9 +8,10 @@ import { validateToken } from '@/lib/auth-utils';
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireAdmin?: boolean;
+  requireSeller?: boolean;
 }
 
-export default function ProtectedRoute({ children, requireAdmin = false }: ProtectedRouteProps) {
+export default function ProtectedRoute({ children, requireAdmin = false, requireSeller = false }: ProtectedRouteProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(true);
 
@@ -38,7 +39,23 @@ export default function ProtectedRoute({ children, requireAdmin = false }: Prote
 
         // Si requiere admin, verificar el rol
         if (requireAdmin && !auth.isAdmin()) {
-          router.push('/admin');
+          // Si es seller, redirigir a seller dashboard, sino a admin
+          if (auth.isSeller()) {
+            router.push('/seller');
+          } else {
+            router.push('/admin');
+          }
+          return;
+        }
+
+        // Si requiere seller, verificar el rol
+        if (requireSeller && !auth.isSeller()) {
+          // Si es admin, redirigir a admin dashboard, sino a login
+          if (auth.isAdmin()) {
+            router.push('/admin');
+          } else {
+            router.push('/login');
+          }
           return;
         }
 
@@ -52,7 +69,7 @@ export default function ProtectedRoute({ children, requireAdmin = false }: Prote
     };
 
     checkAuth();
-  }, [router, requireAdmin]);
+  }, [router, requireAdmin, requireSeller]);
 
   if (isLoading) {
     return (

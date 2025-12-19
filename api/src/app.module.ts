@@ -11,6 +11,8 @@ import { UsersModule } from './users/users.module';
 import { WarehouseModule } from './warehouse/warehouse.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { LocationsModule } from './locations/locations.module';
+import { BranchesModule } from './branches/branches.module';
+import { SalesModule } from './sales/sales.module';
 import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
 
 @Module({
@@ -26,6 +28,8 @@ import { JwtAuthGuard } from './auth/guards/jwt-auth.guard';
     WarehouseModule,
     NotificationsModule,
     LocationsModule,
+    BranchesModule,
+    SalesModule,
   ],
   controllers: [AppController],
   providers: [

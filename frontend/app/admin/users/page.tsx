@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { AlertCircle, Plus, Users, CheckCircle2 } from "lucide-react"
+import { AlertCircle, Plus, Users, Edit } from "lucide-react"
 import {
   Table,
   TableBody,
@@ -53,15 +53,17 @@ export default function UsersPage() {
   const { toast } = useToast()
   const [users, setUsers] = useState<User[]>([])
   const [locations, setLocations] = useState<Location[]>([])
+  const [branches, setBranches] = useState<Location[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [showDialog, setShowDialog] = useState(false)
+  const [editingUser, setEditingUser] = useState<User | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState("")
 
   const [formData, setFormData] = useState({
     username: "",
     password: "",
-    role: "WAREHOUSE" as "WAREHOUSE" | "ADMIN" | "USER",
+    role: "WAREHOUSE" as "WAREHOUSE" | "ADMIN" | "USER" | "SELLER",
     first_name: "",
     last_name: "",
     email: "",
@@ -79,6 +81,7 @@ export default function UsersPage() {
   useEffect(() => {
     loadUsers()
     loadLocations()
+    loadBranches()
   }, [])
 
   const loadUsers = async () => {
@@ -103,14 +106,33 @@ export default function UsersPage() {
     }
   }
 
+  const loadBranches = async () => {
+    try {
+      const data = await apiClient.get<Location[]>("/branches")
+      setBranches(data)
+    } catch (err: any) {
+      console.error("Error al cargar sucursales:", err)
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
 
+    // Validar que si es SELLER, tenga location_id
+    if (formData.role === "SELLER" && !formData.location_id) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Los vendedores deben estar asociados a una sucursal",
+      })
+      setIsSubmitting(false)
+      return
+    }
+
     try {
-      const payload = {
+      const payload: any = {
         username: formData.username.trim(),
-        password: formData.password,
         role: formData.role,
         first_name: formData.first_name.trim() || undefined,
         last_name: formData.last_name.trim() || undefined,
@@ -118,11 +140,24 @@ export default function UsersPage() {
         location_id: formData.location_id && formData.location_id !== "none" ? formData.location_id : undefined,
       }
 
-      await apiClient.post("/users", payload)
-      toast({
-        title: "Usuario creado",
-        description: `El usuario ${formData.username} ha sido creado exitosamente.`,
-      })
+      // Solo incluir password si se está creando o si se cambió
+      if (!editingUser || formData.password) {
+        payload.password = formData.password
+      }
+
+      if (editingUser) {
+        await apiClient.patch(`/users/${editingUser.id}`, payload)
+        toast({
+          title: "Usuario actualizado",
+          description: `El usuario ${formData.username} ha sido actualizado exitosamente.`,
+        })
+      } else {
+        await apiClient.post("/users", payload)
+        toast({
+          title: "Usuario creado",
+          description: `El usuario ${formData.username} ha sido creado exitosamente.`,
+        })
+      }
 
       setShowDialog(false)
       resetForm()
@@ -131,14 +166,29 @@ export default function UsersPage() {
       toast({
         variant: "destructive",
         title: "Error",
-        description: err.message || "Error al crear usuario",
+        description: err.message || (editingUser ? "Error al actualizar usuario" : "Error al crear usuario"),
       })
     } finally {
       setIsSubmitting(false)
     }
   }
 
+  const handleEdit = (user: User) => {
+    setEditingUser(user)
+    setFormData({
+      username: user.username,
+      password: "", // No pre-llenar contraseña por seguridad
+      role: user.role as "WAREHOUSE" | "ADMIN" | "USER" | "SELLER",
+      first_name: user.first_name || "",
+      last_name: user.last_name || "",
+      email: user.email || "",
+      location_id: user.location_id || "",
+    })
+    setShowDialog(true)
+  }
+
   const resetForm = () => {
+    setEditingUser(null)
     setFormData({
       username: "",
       password: "",
@@ -206,26 +256,24 @@ export default function UsersPage() {
     }
   }
 
-  const formatDate = (dateString: string) => {
-    // Parsear la fecha como fecha local para evitar problemas de zona horaria
-    // Si viene como ISO string, extraer solo la parte de fecha
-    const dateOnly = dateString.split('T')[0]
-    const [year, month, day] = dateOnly.split('-').map(Number)
-    const date = new Date(year, month - 1, day)
-    return date.toLocaleDateString("es-ES", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    })
-  }
-
   const getRoleLabel = (role: string) => {
     const labels: Record<string, string> = {
       ADMIN: "Administrador",
       WAREHOUSE: "Almacén",
       USER: "Usuario",
+      SELLER: "Vendedor",
     }
     return labels[role] || role
+  }
+
+  const getRoleColor = (role: string) => {
+    const colors: Record<string, string> = {
+      ADMIN: "bg-purple-100 text-purple-800",
+      WAREHOUSE: "bg-blue-100 text-blue-800",
+      USER: "bg-gray-100 text-gray-800",
+      SELLER: "bg-blue-100 text-blue-800",
+    }
+    return colors[role] || "bg-gray-100 text-gray-800"
   }
 
   return (
@@ -252,80 +300,92 @@ export default function UsersPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Usuarios del Sistema</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Users className="h-5 w-5" />
+            Usuarios del Sistema
+          </CardTitle>
           <CardDescription>
             Lista de todos los usuarios registrados en el sistema
           </CardDescription>
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="py-8 text-center text-muted-foreground">
-              Cargando usuarios...
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Cargando usuarios...</p>
             </div>
           ) : users.length === 0 ? (
-            <div className="py-8 text-center">
-              <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+            <div className="text-center py-8">
               <p className="text-muted-foreground">No hay usuarios registrados</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Usuario</TableHead>
-                    <TableHead>Nombre</TableHead>
-                    <TableHead>Rol</TableHead>
-                    <TableHead>Ubicación</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Fecha de Creación</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {users.map((user) => (
-                    <TableRow key={user.id}>
-                      <TableCell className="font-medium">{user.username}</TableCell>
-                      <TableCell>
-                        {user.first_name || user.last_name
-                          ? `${user.first_name || ""} ${user.last_name || ""}`.trim()
-                          : "-"}
-                      </TableCell>
-                      <TableCell>
-                        <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-                          {getRoleLabel(user.role)}
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Usuario</TableHead>
+                  <TableHead>Nombre</TableHead>
+                  <TableHead>Rol</TableHead>
+                  <TableHead>Ubicación</TableHead>
+                  <TableHead>Fecha de Registro</TableHead>
+                  <TableHead>Estado</TableHead>
+                  <TableHead className="text-right">Acciones</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {users.map((user) => (
+                  <TableRow key={user.id}>
+                    <TableCell className="font-medium">{user.username}</TableCell>
+                    <TableCell>
+                      {user.first_name || user.last_name
+                        ? `${user.first_name || ""} ${user.last_name || ""}`.trim()
+                        : "-"}
+                    </TableCell>
+                    <TableCell>
+                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getRoleColor(user.role)}`}>
+                        {getRoleLabel(user.role)}
+                      </span>
+                    </TableCell>
+                    <TableCell>{user.location ? user.location.name : "-"}</TableCell>
+                    <TableCell>
+                      {new Date(user.created_at).toLocaleDateString('es-MX')}
+                    </TableCell>
+                    <TableCell>
+                      {user.is_active ? (
+                        <span className="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                          Activo
                         </span>
-                      </TableCell>
-                      <TableCell>
-                        {user.location ? user.location.name : "-"}
-                      </TableCell>
-                      <TableCell>
-                        {user.is_active ? (
-                          <span className="inline-flex items-center gap-1 text-green-600">
-                            <CheckCircle2 className="h-4 w-4" />
-                            Activo
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">Inactivo</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {formatDate(user.created_at)}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                      ) : (
+                        <span className="inline-flex items-center rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-medium text-red-800">
+                          Inactivo
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleEdit(user)}
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Editar
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
 
-      {/* Dialog para crear usuario */}
+      {/* Dialog para crear/editar usuario */}
       <Dialog open={showDialog} onOpenChange={setShowDialog}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Crear Nuevo Usuario</DialogTitle>
+            <DialogTitle>{editingUser ? "Editar Usuario" : "Crear Nuevo Usuario"}</DialogTitle>
             <DialogDescription>
-              Completa el formulario para crear un nuevo usuario. Los campos marcados con * son obligatorios.
+              {editingUser
+                ? "Actualiza los datos del usuario. Deja la contraseña en blanco para mantener la actual."
+                : "Completa el formulario para crear un nuevo usuario. Los campos marcados con * son obligatorios."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit}>
@@ -344,23 +404,34 @@ export default function UsersPage() {
                       setFormData({ ...formData, username: e.target.value })
                     }
                     required
+                    disabled={!!editingUser}
                   />
+                  {editingUser && (
+                    <p className="text-xs text-muted-foreground">
+                      El nombre de usuario no se puede modificar
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="password">
-                    Contraseña <span className="text-red-500">*</span>
+                    Contraseña {!editingUser && <span className="text-red-500">*</span>}
                   </Label>
                   <Input
                     id="password"
                     type="password"
-                    placeholder="Mínimo 6 caracteres"
+                    placeholder={editingUser ? "Dejar en blanco para mantener la actual" : "Mínimo 6 caracteres"}
                     value={formData.password}
                     onChange={(e) =>
                       setFormData({ ...formData, password: e.target.value })
                     }
-                    required
-                    minLength={6}
+                    required={!editingUser}
+                    minLength={editingUser ? 0 : 6}
                   />
+                  {editingUser && (
+                    <p className="text-xs text-muted-foreground">
+                      Solo completa si deseas cambiar la contraseña
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -370,9 +441,9 @@ export default function UsersPage() {
                 </Label>
                 <Select
                   value={formData.role}
-                  onValueChange={(value: "WAREHOUSE" | "ADMIN" | "USER") =>
-                    setFormData({ ...formData, role: value })
-                  }
+                  onValueChange={(value: "WAREHOUSE" | "ADMIN" | "USER" | "SELLER") => {
+                    setFormData({ ...formData, role: value, location_id: "" })
+                  }}
                 >
                   <SelectTrigger id="role">
                     <SelectValue placeholder="Selecciona un rol" />
@@ -381,6 +452,7 @@ export default function UsersPage() {
                     <SelectItem value="WAREHOUSE">Almacén</SelectItem>
                     <SelectItem value="ADMIN">Administrador</SelectItem>
                     <SelectItem value="USER">Usuario</SelectItem>
+                    <SelectItem value="SELLER">Vendedor</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -419,6 +491,41 @@ export default function UsersPage() {
                   </Select>
                   <p className="text-xs text-muted-foreground">
                     Asocia el usuario a un almacén específico (opcional)
+                  </p>
+                </div>
+              )}
+
+              {formData.role === "SELLER" && (
+                <div className="space-y-2">
+                  <Label htmlFor="branch_id">
+                    Sucursal <span className="text-red-500">*</span>
+                  </Label>
+                  <Select
+                    value={formData.location_id || undefined}
+                    onValueChange={(value) =>
+                      setFormData({ ...formData, location_id: value === "none" ? "" : value })
+                    }
+                    required
+                  >
+                    <SelectTrigger id="branch_id">
+                      <SelectValue placeholder="Selecciona una sucursal" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {branches.length === 0 ? (
+                        <SelectItem value="none" disabled>
+                          No hay sucursales disponibles
+                        </SelectItem>
+                      ) : (
+                        branches.map((branch) => (
+                          <SelectItem key={branch.id} value={branch.id}>
+                            {branch.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    El vendedor debe estar asociado a una sucursal
                   </p>
                 </div>
               )}
@@ -475,7 +582,7 @@ export default function UsersPage() {
                 Cancelar
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creando..." : "Crear Usuario"}
+                {isSubmitting ? (editingUser ? "Actualizando..." : "Creando...") : (editingUser ? "Actualizar" : "Crear Usuario")}
               </Button>
             </DialogFooter>
           </form>
@@ -575,4 +682,3 @@ export default function UsersPage() {
     </div>
   )
 }
-

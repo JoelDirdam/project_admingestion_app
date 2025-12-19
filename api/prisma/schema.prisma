@@ -18,6 +18,7 @@ enum LocationType {
   PRODUCTION
   WAREHOUSE
   STORE
+  BRANCH
   ROUTE
 }
 
@@ -60,6 +61,7 @@ enum Role {
   ADMIN
   USER
   WAREHOUSE
+  SELLER
 }
 
 // ============================================

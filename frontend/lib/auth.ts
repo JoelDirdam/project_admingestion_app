@@ -61,6 +61,12 @@ export const auth = {
     return user?.role === "WAREHOUSE" || user?.role === "ADMIN"
   },
 
+  // Verificar si es seller
+  isSeller: (): boolean => {
+    const user = auth.getUser()
+    return user?.role === "SELLER"
+  },
+
   // Cerrar sesión
   logout: () => {
     if (typeof window === "undefined") return

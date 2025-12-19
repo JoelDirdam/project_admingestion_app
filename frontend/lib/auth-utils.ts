@@ -70,6 +70,10 @@ export function getRedirectPathForUser(user: User | null): string {
     return '/warehouse';
   }
 
+  if (user.role === 'SELLER') {
+    return '/seller';
+  }
+
   return '/login';
 }
 

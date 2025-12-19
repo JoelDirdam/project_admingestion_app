@@ -67,5 +67,11 @@ export class ProductsController {
     const companyId = req.user.companyId;
     return this.productsService.remove(id, companyId);
   }
+
+  @Get('variants/with-prices')
+  getProductVariantsWithPrices(@Request() req) {
+    const companyId = req.user.companyId;
+    return this.productsService.getProductVariantsWithPrices(companyId);
+  }
 }
 

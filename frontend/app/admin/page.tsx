@@ -2,7 +2,7 @@
 
 import { auth } from "@/lib/auth"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Package, ClipboardList, Warehouse, BarChart3, UserPlus } from "lucide-react"
+import { Package, ClipboardList, Warehouse, BarChart3, UserPlus, Store } from "lucide-react"
 import Link from "next/link"
 
 export default function AdminPage() {
@@ -112,6 +112,26 @@ export default function AdminPage() {
                       </CardTitle>
                       <CardDescription className="mt-1.5">
                         Crear y administrar usuarios del sistema (Almacén, Admin, etc.)
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+              </Card>
+            </Link>
+
+            <Link href="/admin/branches" className="group">
+              <Card className="transition-all hover:shadow-lg hover:border-primary">
+                <CardHeader>
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <Store className="h-6 w-6" />
+                    </div>
+                    <div className="flex-1">
+                      <CardTitle className="group-hover:text-primary transition-colors">
+                        Gestión de Sucursales
+                      </CardTitle>
+                      <CardDescription className="mt-1.5">
+                        Crear y administrar sucursales y sus vendedores
                       </CardDescription>
                     </div>
                   </div>
