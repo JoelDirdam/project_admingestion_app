@@ -38,4 +38,6 @@ prisma/migrations/
 coverage/
 .nyc_output/
 
+README_DIAGNOSE_AUTH.md
+
 
