@@ -172,6 +172,12 @@ export const apiClient = {
       body: data ? JSON.stringify(data) : undefined,
     }),
 
+  put: <T = unknown>(endpoint: string, data?: unknown) =>
+    apiRequest<T>(endpoint, {
+      method: "PUT",
+      body: data ? JSON.stringify(data) : undefined,
+    }),
+
   patch: <T = unknown>(endpoint: string, data?: unknown) =>
     apiRequest<T>(endpoint, {
       method: "PATCH",

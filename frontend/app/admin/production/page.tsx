@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { apiClient } from "@/lib/api-client"
 import type {
   Product,
@@ -190,6 +190,53 @@ export default function ProductionPage() {
     }
   }
 
+  const handleQuantityFocus = (productId: string, e: React.FocusEvent<HTMLInputElement>) => {
+    // // Si el valor es "0", limpiarlo para que el usuario pueda escribir directamente
+    // if (quantities[productId] === "0") {
+    //   setQuantities({ ...quantities, [productId]: "" })
+    // } else {
+      // Si tiene un valor diferente, seleccionar todo el texto para facilitar la edición
+      setTimeout(() => {
+        e.target.select()
+      }, 0)
+    // }
+  }
+
+  const handleQuantityBlur = (productId: string, e: React.FocusEvent<HTMLInputElement>) => {
+    // Si el campo queda vacío, restaurar a "0"
+    if (!quantities[productId] || quantities[productId].trim() === "") {
+      setQuantities({ ...quantities, [productId]: "0" })
+    }
+  }
+
+  const handleQuantityKeyDown = (
+    productId: string,
+    index: number,
+    e: React.KeyboardEvent<HTMLInputElement>,
+  ) => {
+    // Si se presiona Enter o el botón "siguiente" del teclado
+    if (e.key === "Enter") {
+      e.preventDefault()
+      
+      // Si no es el último producto, enfocar el siguiente input
+      if (index < products.length - 1) {
+        const nextInputId = `qty-${products[index + 1].id}`
+        const nextInput = document.getElementById(nextInputId) as HTMLInputElement
+        if (nextInput) {
+          nextInput.focus()
+          nextInput.select() // Seleccionar el texto para facilitar la edición
+        }
+      } else {
+        // Si es el último producto, cerrar el teclado y enfocar el botón de submit
+        e.currentTarget.blur()
+        const submitButton = document.querySelector('button[type="submit"]') as HTMLButtonElement
+        if (submitButton) {
+          submitButton.focus()
+        }
+      }
+    }
+  }
+
   const handleDateSelect = (date: string) => {
     setSelectedDate(date)
     setDate(date) // También actualizar la fecha del formulario
@@ -313,7 +360,7 @@ export default function ProductionPage() {
                   </Alert>
                 ) : (
                   <div className="space-y-3">
-                    {products.map((product) => (
+                    {products.map((product, index) => (
                       <div
                         key={product.id}
                         className="flex items-center justify-between gap-4 rounded-lg border p-4"
@@ -333,9 +380,14 @@ export default function ProductionPage() {
                           <Input
                             id={`qty-${product.id}`}
                             type="number"
+                            inputMode="numeric"
+                            enterKeyHint={index < products.length - 1 ? "next" : "done"}
                             min="0"
                             value={quantities[product.id] || "0"}
                             onChange={(e) => handleQuantityChange(product.id, e.target.value)}
+                            onFocus={(e) => handleQuantityFocus(product.id, e)}
+                            onBlur={(e) => handleQuantityBlur(product.id, e)}
+                            onKeyDown={(e) => handleQuantityKeyDown(product.id, index, e)}
                             className="w-24 text-right"
                           />
                         </div>

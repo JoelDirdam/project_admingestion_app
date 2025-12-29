@@ -1,7 +1,9 @@
-import { Controller, Post, Get, Patch, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Put, Body, Param, Query, UseGuards, Request } from '@nestjs/common';
 import { WarehouseService } from './warehouse.service';
 import { CreateWarehouseReceiptDto } from './dto/create-warehouse-receipt.dto';
 import { ConfirmWarehouseReceiptDto } from './dto/confirm-warehouse-receipt.dto';
+import { UpdateWarehouseReceiptDto } from './dto/update-warehouse-receipt.dto';
+import { ReviewEditRequestDto } from './dto/review-edit-request.dto';
 import { ComparisonQueryDto } from './dto/comparison-query.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -60,6 +62,55 @@ export class WarehouseController {
   @Roles(Role.ADMIN)
   async getComparison(@Query() query: ComparisonQueryDto, @Request() req) {
     return this.warehouseService.getComparison(query, req.user.companyId);
+  }
+
+  @Put('receipts/:id')
+  @Roles(Role.WAREHOUSE, Role.ADMIN)
+  async updateReceipt(
+    @Param('id') receiptId: string,
+    @Body() updateDto: UpdateWarehouseReceiptDto,
+    @Request() req,
+  ) {
+    return this.warehouseService.updateReceipt(
+      receiptId,
+      updateDto,
+      req.user.companyId,
+      req.user.userId,
+      req.user.role,
+    );
+  }
+
+  @Get('edit-requests')
+  @Roles(Role.ADMIN)
+  async getEditRequests(
+    @Query('status') status?: string,
+    @Request() req?: any,
+  ) {
+    return this.warehouseService.getEditRequests(req.user.companyId, status);
+  }
+
+  @Patch('edit-requests/:id/review')
+  @Roles(Role.ADMIN)
+  async reviewEditRequest(
+    @Param('id') requestId: string,
+    @Body() reviewDto: ReviewEditRequestDto,
+    @Request() req,
+  ) {
+    return this.warehouseService.reviewEditRequest(
+      requestId,
+      reviewDto,
+      req.user.companyId,
+      req.user.userId,
+    );
+  }
+
+  @Get('receipts/:id/edit-history')
+  @Roles(Role.ADMIN)
+  async getReceiptEditHistory(
+    @Param('id') receiptId: string,
+    @Request() req,
+  ) {
+    return this.warehouseService.getReceiptEditHistory(receiptId, req.user.companyId);
   }
 }
 

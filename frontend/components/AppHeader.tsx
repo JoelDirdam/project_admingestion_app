@@ -37,18 +37,19 @@ export function AppHeader({ onMenuClick }: AppHeaderProps) {
   const { toast } = useToast()
   const user = auth.getUser()
   const isAdmin = auth.isAdmin()
+  const isWarehouse = auth.isWarehouse()
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [unreadCount, setUnreadCount] = useState(0)
   const [showNotifications, setShowNotifications] = useState(false)
 
   useEffect(() => {
-    if (isAdmin) {
+    if (isAdmin || isWarehouse) {
       loadNotifications()
       // Recargar notificaciones cada 30 segundos
       const interval = setInterval(loadNotifications, 30000)
       return () => clearInterval(interval)
     }
-  }, [isAdmin])
+  }, [isAdmin, isWarehouse])
 
   const loadNotifications = async () => {
     try {
@@ -82,11 +83,53 @@ export function AppHeader({ onMenuClick }: AppHeaderProps) {
         ? JSON.parse(notification.payload) 
         : notification.payload
       if (notification.type === "WAREHOUSE_RECEIPT_CONFIRMED") {
-        return `Recepción de almacén confirmada para ${payload.date} en ${payload.location} por ${payload.confirmedByName}`
+        const receiptDate = payload.receiptDate || payload.date || "fecha desconocida"
+        const confirmationDate = payload.confirmationDate || "fecha desconocida"
+        const confirmedByName = payload.confirmedByName || "No disponible"
+        return `Nueva recepción\nFecha de recepción: ${receiptDate}\nFecha de confirmación: ${confirmationDate}\nFirmado por: ${confirmedByName}\nUbicación: ${payload.location}`
+      }
+      if (notification.type === "WAREHOUSE_EDIT_REQUEST") {
+        return `Solicitud de edición de recepción del ${payload.date} en ${payload.location} por ${payload.requestedBy}`
+      }
+      if (notification.type === "WAREHOUSE_EDIT_REQUEST_RESPONSE") {
+        const statusText = payload.status === "APPROVED" ? "aprobada" : "rechazada"
+        let message = `Tu solicitud de edición del ${payload.date} en ${payload.location} fue ${statusText}`
+        if (payload.status === "REJECTED" && payload.rejectionReason) {
+          message += `\nMotivo: ${payload.rejectionReason}`
+        }
+        return message
       }
       return "Nueva notificación"
     } catch {
       return "Nueva notificación"
+    }
+  }
+
+  const handleNotificationClick = (notification: Notification) => {
+    try {
+      const payload = typeof notification.payload === 'string' 
+        ? JSON.parse(notification.payload) 
+        : notification.payload
+      
+      if (notification.type === "WAREHOUSE_EDIT_REQUEST") {
+        // Redirigir a la página de solicitudes de edición con el ID de la solicitud
+        router.push(`/admin/warehouse/edit-requests?requestId=${payload.editRequestId}`)
+        handleMarkAsRead(notification.id)
+      } else if (notification.type === "WAREHOUSE_RECEIPT_CONFIRMED") {
+        // Redirigir al historial de recepciones
+        router.push(`/warehouse/history`)
+        handleMarkAsRead(notification.id)
+      } else if (notification.type === "WAREHOUSE_EDIT_REQUEST_RESPONSE") {
+        // Redirigir al historial de recepciones (tanto para admin como warehouse)
+        if (isWarehouse) {
+          router.push(`/warehouse/history`)
+        } else {
+          router.push(`/warehouse/history`)
+        }
+        handleMarkAsRead(notification.id)
+      }
+    } catch (error) {
+      console.error("Error al procesar click en notificación:", error)
     }
   }
 
@@ -107,8 +150,8 @@ export function AppHeader({ onMenuClick }: AppHeaderProps) {
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Notificaciones - Solo para ADMIN */}
-          {isAdmin && (
+          {/* Notificaciones - Para ADMIN y WAREHOUSE */}
+          {(isAdmin || isWarehouse) && (
             <div className="relative">
               <Button
                 variant="ghost"
@@ -124,7 +167,7 @@ export function AppHeader({ onMenuClick }: AppHeaderProps) {
                 )}
               </Button>
               {showNotifications && (
-                <Card className="absolute right-0 mt-2 w-80 z-50 max-h-96 overflow-y-auto">
+                <Card className="absolute right-0 mt-2 w-96 z-50 max-h-[26rem] overflow-y-auto">
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">Notificaciones</CardTitle>
@@ -145,15 +188,22 @@ export function AppHeader({ onMenuClick }: AppHeaderProps) {
                       </p>
                     ) : (
                       notifications.map((notification) => (
-                        <Alert key={notification.id} className="cursor-pointer hover:bg-muted/50">
+                        <Alert 
+                          key={notification.id} 
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => handleNotificationClick(notification)}
+                        >
                           <AlertCircle className="h-4 w-4" />
                           <AlertDescription className="flex-1">
-                            <p className="text-sm">{getNotificationMessage(notification)}</p>
+                            <p className="text-sm whitespace-pre-line">{getNotificationMessage(notification)}</p>
                             <Button
                               variant="link"
                               size="sm"
                               className="mt-2 h-auto p-0 text-xs"
-                              onClick={() => handleMarkAsRead(notification.id)}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleMarkAsRead(notification.id)
+                              }}
                             >
                               Marcar como leída
                             </Button>

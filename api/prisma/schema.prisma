@@ -240,6 +240,9 @@ model User {
   payments           Payment[]
   warehouse_receipts WarehouseReceipt[]
   notifications      Notification[]
+  warehouse_receipt_edits WarehouseReceiptEdit[]
+  warehouse_edit_requests_requester WarehouseEditRequest[] @relation("EditRequester")
+  warehouse_edit_requests_approver  WarehouseEditRequest[] @relation("EditApprover")
 
   @@index([company_id])
   @@index([username])
@@ -533,6 +536,8 @@ model WarehouseReceipt {
   location        Location              @relation(fields: [location_id], references: [id], onDelete: Cascade)
   user            User                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
   receipt_items   WarehouseReceiptItem[]
+  edits           WarehouseReceiptEdit[]
+  edit_requests   WarehouseEditRequest[]
 
   @@index([company_id])
   @@index([campaign_id])
@@ -577,5 +582,48 @@ model Notification {
   @@index([read])
   @@index([created_at])
   @@map("notifications")
+}
+
+// WarehouseReceiptEdit represents a history record of edits made to a warehouse receipt
+model WarehouseReceiptEdit {
+  id                   String   @id @default(uuid())
+  warehouse_receipt_id String
+  edited_by_id         String   // User who made the edit
+  previous_data        Json     // JSON containing the previous state (items, notes, etc.)
+  new_data             Json     // JSON containing the new state (items, notes, etc.)
+  created_at           DateTime @default(now())
+
+  warehouse_receipt WarehouseReceipt @relation(fields: [warehouse_receipt_id], references: [id], onDelete: Cascade)
+  edited_by          User            @relation(fields: [edited_by_id], references: [id], onDelete: Cascade)
+
+  @@index([warehouse_receipt_id])
+  @@index([edited_by_id])
+  @@index([created_at])
+  @@map("warehouse_receipt_edits")
+}
+
+// WarehouseEditRequest represents a request from a warehouse user to edit a receipt (requires admin approval)
+model WarehouseEditRequest {
+  id                   String   @id @default(uuid())
+  warehouse_receipt_id String
+  requester_id         String   // Warehouse user who requested the edit
+  approver_id          String?  // Admin who approved/rejected (null if pending)
+  proposed_data        Json     // JSON containing the proposed changes
+  status               String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  rejection_reason     String?  // Optional message from admin when rejecting
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+  reviewed_at          DateTime?
+
+  warehouse_receipt WarehouseReceipt @relation(fields: [warehouse_receipt_id], references: [id], onDelete: Cascade)
+  requester         User            @relation("EditRequester", fields: [requester_id], references: [id], onDelete: Cascade)
+  approver          User?           @relation("EditApprover", fields: [approver_id], references: [id], onDelete: SetNull)
+
+  @@index([warehouse_receipt_id])
+  @@index([requester_id])
+  @@index([approver_id])
+  @@index([status])
+  @@index([created_at])
+  @@map("warehouse_edit_requests")
 }
 

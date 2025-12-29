@@ -2,6 +2,8 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateWarehouseReceiptDto } from './dto/create-warehouse-receipt.dto';
 import { ConfirmWarehouseReceiptDto } from './dto/confirm-warehouse-receipt.dto';
+import { UpdateWarehouseReceiptDto } from './dto/update-warehouse-receipt.dto';
+import { ReviewEditRequestDto } from './dto/review-edit-request.dto';
 import { ComparisonQueryDto } from './dto/comparison-query.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { parseLocalDate, getDateRange } from '../common/utils/date.utils';
@@ -472,6 +474,486 @@ export class WarehouseService {
     }
 
     return receipt;
+  }
+
+  async updateReceipt(
+    receiptId: string,
+    updateDto: UpdateWarehouseReceiptDto,
+    companyId: string,
+    userId: string,
+    userRole: string,
+  ) {
+    // Obtener la recepción actual
+    const receipt = await this.prisma.warehouseReceipt.findFirst({
+      where: {
+        id: receiptId,
+        company_id: companyId,
+      },
+      include: {
+        receipt_items: {
+          include: {
+            product_variant: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        },
+        location: true,
+        user: {
+          select: {
+            id: true,
+            username: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    if (!receipt) {
+      throw new NotFoundException('Recepción no encontrada');
+    }
+
+    // Si es ADMIN, puede editar directamente
+    if (userRole === 'ADMIN') {
+      return this.applyReceiptUpdate(receiptId, updateDto, companyId, userId, receipt);
+    }
+
+    // Si es WAREHOUSE, debe crear una solicitud de edición
+    if (userRole === 'WAREHOUSE') {
+      // Guardar el estado actual como datos previos
+      const previousData = {
+        date: receipt.receipt_date.toISOString().split('T')[0],
+        campaignId: receipt.campaign_id,
+        locationId: receipt.location_id,
+        notes: receipt.notes,
+        items: receipt.receipt_items.map(item => ({
+          productId: item.product_variant.product.id,
+          quantityReceived: item.quantity_received,
+        })),
+      };
+
+      // Preparar los datos propuestos
+      const proposedData = {
+        date: updateDto.date || previousData.date,
+        campaignId: updateDto.campaignId ?? previousData.campaignId,
+        locationId: updateDto.locationId || previousData.locationId,
+        notes: updateDto.notes ?? previousData.notes,
+        items: updateDto.items || previousData.items,
+      };
+
+      // Crear la solicitud de edición
+      const editRequest = await this.prisma.warehouseEditRequest.create({
+        data: {
+          warehouse_receipt_id: receiptId,
+          requester_id: userId,
+          proposed_data: proposedData as any,
+          status: 'PENDING',
+        },
+        include: {
+          warehouse_receipt: {
+            include: {
+              location: true,
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  first_name: true,
+                  last_name: true,
+                },
+              },
+            },
+          },
+          requester: {
+            select: {
+              id: true,
+              username: true,
+              first_name: true,
+              last_name: true,
+            },
+          },
+        },
+      });
+
+      // Crear notificaciones para todos los administradores
+      await this.notificationsService.createEditRequestNotification(
+        companyId,
+        editRequest,
+      );
+
+      return editRequest;
+    }
+
+    throw new ForbiddenException('No tienes permisos para editar esta recepción');
+  }
+
+  async applyReceiptUpdate(
+    receiptId: string,
+    updateDto: UpdateWarehouseReceiptDto,
+    companyId: string,
+    userId: string,
+    currentReceipt: any,
+  ) {
+    // Guardar el estado anterior para el historial
+    const previousData = {
+      date: currentReceipt.receipt_date.toISOString().split('T')[0],
+      campaignId: currentReceipt.campaign_id,
+      locationId: currentReceipt.location_id,
+      notes: currentReceipt.notes,
+      items: currentReceipt.receipt_items.map((item: any) => ({
+        productId: item.product_variant.product.id,
+        quantityReceived: item.quantity_received,
+      })),
+    };
+
+    // Preparar los nuevos datos
+    const receiptDate = updateDto.date ? parseLocalDate(updateDto.date) : currentReceipt.receipt_date;
+
+    // Procesar items si se proporcionan
+    let batchItemsData: any[] | undefined;
+    if (updateDto.items && updateDto.items.length > 0) {
+      const productIds = updateDto.items.map(item => item.productId);
+      const products = await this.prisma.product.findMany({
+        where: {
+          id: { in: productIds },
+          company_id: companyId,
+        },
+      });
+
+      if (products.length !== productIds.length) {
+        throw new NotFoundException('Uno o más productos no fueron encontrados');
+      }
+
+      batchItemsData = await Promise.all(
+        updateDto.items.map(async (item) => {
+          const product = products.find(p => p.id === item.productId);
+          if (!product) {
+            throw new NotFoundException(`Producto con ID ${item.productId} no encontrado`);
+          }
+
+          let productVariant = await this.prisma.productVariant.findFirst({
+            where: {
+              product_id: product.id,
+            },
+          });
+
+          if (!productVariant) {
+            productVariant = await this.prisma.productVariant.create({
+              data: {
+                product_id: product.id,
+                name: product.name,
+                is_active: true,
+              },
+            });
+          }
+
+          return {
+            product_variant_id: productVariant.id,
+            quantity_received: item.quantityReceived,
+          };
+        }),
+      );
+
+      // Eliminar items existentes
+      await this.prisma.warehouseReceiptItem.deleteMany({
+        where: {
+          warehouse_receipt_id: receiptId,
+        },
+      });
+    }
+
+    // Actualizar la recepción
+    const updatedReceipt = await this.prisma.warehouseReceipt.update({
+      where: { id: receiptId },
+      data: {
+        receipt_date: receiptDate,
+        campaign_id: updateDto.campaignId ?? currentReceipt.campaign_id,
+        location_id: updateDto.locationId || currentReceipt.location_id,
+        notes: updateDto.notes ?? currentReceipt.notes,
+        ...(batchItemsData && {
+          receipt_items: {
+            create: batchItemsData,
+          },
+        }),
+      },
+      include: {
+        receipt_items: {
+          include: {
+            product_variant: {
+              include: {
+                product: true,
+              },
+            },
+          },
+        },
+        location: true,
+        user: {
+          select: {
+            id: true,
+            username: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    // Guardar el registro de edición
+    const newData = {
+      date: updatedReceipt.receipt_date.toISOString().split('T')[0],
+      campaignId: updatedReceipt.campaign_id,
+      locationId: updatedReceipt.location_id,
+      notes: updatedReceipt.notes,
+      items: updatedReceipt.receipt_items.map((item: any) => ({
+        productId: item.product_variant.product.id,
+        quantityReceived: item.quantity_received,
+      })),
+    };
+
+    await this.prisma.warehouseReceiptEdit.create({
+      data: {
+        warehouse_receipt_id: receiptId,
+        edited_by_id: userId,
+        previous_data: previousData as any,
+        new_data: newData as any,
+      },
+    });
+
+    return updatedReceipt;
+  }
+
+  async reviewEditRequest(
+    requestId: string,
+    reviewDto: ReviewEditRequestDto,
+    companyId: string,
+    userId: string,
+  ) {
+    // Obtener la solicitud
+    const editRequest = await this.prisma.warehouseEditRequest.findFirst({
+      where: {
+        id: requestId,
+        warehouse_receipt: {
+          company_id: companyId,
+        },
+      },
+      include: {
+        warehouse_receipt: {
+          include: {
+            receipt_items: {
+              include: {
+                product_variant: {
+                  include: {
+                    product: true,
+                  },
+                },
+              },
+            },
+            location: true,
+            user: {
+              select: {
+                id: true,
+                username: true,
+                first_name: true,
+                last_name: true,
+              },
+            },
+          },
+        },
+        requester: {
+          select: {
+            id: true,
+            username: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    if (!editRequest) {
+      throw new NotFoundException('Solicitud de edición no encontrada');
+    }
+
+    if (editRequest.status !== 'PENDING') {
+      throw new BadRequestException('Esta solicitud ya fue procesada');
+    }
+
+    // Actualizar la solicitud
+    const updatedRequest = await this.prisma.warehouseEditRequest.update({
+      where: { id: requestId },
+      data: {
+        status: reviewDto.status,
+        approver_id: userId,
+        rejection_reason: reviewDto.rejectionReason || null,
+        reviewed_at: new Date(),
+      },
+      include: {
+        warehouse_receipt: {
+          include: {
+            receipt_items: {
+              include: {
+                product_variant: {
+                  include: {
+                    product: true,
+                  },
+                },
+              },
+            },
+            location: true,
+            user: {
+              select: {
+                id: true,
+                username: true,
+                first_name: true,
+                last_name: true,
+              },
+            },
+          },
+        },
+        requester: {
+          select: {
+            id: true,
+            username: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+        approver: {
+          select: {
+            id: true,
+            username: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+    });
+
+    // Si fue aprobada, aplicar los cambios
+    if (reviewDto.status === 'APPROVED') {
+      const proposedData = editRequest.proposed_data as any;
+      const updateDto: UpdateWarehouseReceiptDto = {
+        date: proposedData.date,
+        campaignId: proposedData.campaignId,
+        locationId: proposedData.locationId,
+        notes: proposedData.notes,
+        items: proposedData.items,
+      };
+
+      await this.applyReceiptUpdate(
+        editRequest.warehouse_receipt_id,
+        updateDto,
+        companyId,
+        editRequest.requester_id, // El usuario que solicitó la edición es quien la hace
+        editRequest.warehouse_receipt,
+      );
+    }
+
+    // Crear notificación para el usuario que solicitó la edición
+    await this.notificationsService.createEditRequestResponseNotification(
+      editRequest.requester_id,
+      updatedRequest,
+    );
+
+    return updatedRequest;
+  }
+
+  async getEditRequests(companyId: string, status?: string) {
+    const where: any = {
+      warehouse_receipt: {
+        company_id: companyId,
+      },
+    };
+
+    if (status) {
+      where.status = status;
+    }
+
+    return this.prisma.warehouseEditRequest.findMany({
+      where,
+      include: {
+        warehouse_receipt: {
+          include: {
+            location: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            user: {
+              select: {
+                id: true,
+                username: true,
+                first_name: true,
+                last_name: true,
+              },
+            },
+            receipt_items: {
+              include: {
+                product_variant: {
+                  include: {
+                    product: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+        requester: {
+          select: {
+            id: true,
+            username: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+        approver: {
+          select: {
+            id: true,
+            username: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
+  }
+
+  async getReceiptEditHistory(receiptId: string, companyId: string) {
+    // Verificar que la recepción pertenece a la compañía
+    const receipt = await this.prisma.warehouseReceipt.findFirst({
+      where: {
+        id: receiptId,
+        company_id: companyId,
+      },
+    });
+
+    if (!receipt) {
+      throw new NotFoundException('Recepción no encontrada');
+    }
+
+    return this.prisma.warehouseReceiptEdit.findMany({
+      where: {
+        warehouse_receipt_id: receiptId,
+      },
+      include: {
+        edited_by: {
+          select: {
+            id: true,
+            username: true,
+            first_name: true,
+            last_name: true,
+          },
+        },
+      },
+      orderBy: {
+        created_at: 'desc',
+      },
+    });
   }
 }
 
