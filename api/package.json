@@ -23,11 +23,11 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node prisma/seed.ts",
     "create:admin": "ts-node scripts/create-admin.ts",
-    "diagnose:auth": "ts-node ../scripts/diagnose-auth.ts",
-    "diagnose:auth:reset": "ts-node ../scripts/diagnose-auth.ts --reset-password",
-    "diagnose:auth:activate": "ts-node ../scripts/diagnose-auth.ts --activate",
-    "diagnose:auth:fix-company": "ts-node ../scripts/diagnose-auth.ts --fix-company",
-    "diagnose:auth:fix-all": "ts-node ../scripts/diagnose-auth.ts --fix-all"
+    "diagnose:auth": "ts-node scripts/diagnose-auth.ts",
+    "diagnose:auth:reset": "ts-node scripts/diagnose-auth.ts --reset-password",
+    "diagnose:auth:activate": "ts-node scripts/diagnose-auth.ts --activate",
+    "diagnose:auth:fix-company": "ts-node scripts/diagnose-auth.ts --fix-company",
+    "diagnose:auth:fix-all": "ts-node scripts/diagnose-auth.ts --fix-all"
   },
   "dependencies": {
     "@nestjs/common": "^10.0.0",
