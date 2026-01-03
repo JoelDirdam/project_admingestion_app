@@ -23,7 +23,7 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node prisma/seed.ts",
     "create:admin": "ts-node scripts/create-admin.ts",
-    "create:campaign": "ts-node scripts/crate-campeing.ts",
+    "create:campaign": "ts-node scripts/create-campaings.ts",
     "diagnose:auth": "ts-node scripts/diagnose-auth.ts",
     "diagnose:auth:reset": "ts-node scripts/diagnose-auth.ts --reset-password",
     "diagnose:auth:activate": "ts-node scripts/diagnose-auth.ts --activate",
