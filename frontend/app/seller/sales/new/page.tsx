@@ -161,6 +161,13 @@ function NewSaleContent() {
     return items.reduce((sum, item) => sum + (item.unit_price * item.quantity), 0)
   }
 
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    // Seleccionar todo el texto para facilitar la edición
+    setTimeout(() => {
+      e.target.select()
+    }, 0)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
@@ -438,6 +445,7 @@ function NewSaleContent() {
                               min="1"
                               value={item.quantity}
                               onChange={(e) => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
+                              onFocus={handleInputFocus}
                               className="text-right"
                             />
                           </TableCell>
@@ -449,6 +457,7 @@ function NewSaleContent() {
                                 min="0"
                                 value={item.unit_price}
                                 onChange={(e) => updateItem(index, 'unit_price', parseFloat(e.target.value) || 0)}
+                                onFocus={handleInputFocus}
                                 className="text-right flex-1"
                               />
                               {selectedVariant?.product && (
