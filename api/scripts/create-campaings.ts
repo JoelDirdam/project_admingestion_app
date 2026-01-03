@@ -1,4 +1,4 @@
-import { PrismaClient, CampaignStatus } from '@prisma/client';
+import { PrismaClient, CampaignStatus, LocationType } from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -68,6 +68,46 @@ async function createCampaign() {
         console.log(`   ✅ Campaña creada exitosamente: ${existingCampaign.id}`);
         console.log(`   📝 Nombre: ${existingCampaign.name}`);
         console.log(`   📅 Fechas: ${startDate.toLocaleDateString()} - ${endDate.toLocaleDateString()}`);
+      }
+
+      // 3. Verificar y crear ubicación de producción
+      let productionLocation = await prisma.location.findFirst({
+        where: {
+          company_id: company.id,
+          type: LocationType.PRODUCTION,
+          is_active: true,
+        },
+      });
+
+      if (!productionLocation) {
+        console.log(`   🏭 Creando ubicación de producción...`);
+        productionLocation = await prisma.location.create({
+          data: {
+            company_id: company.id,
+            name: 'Planta de Producción Principal',
+            type: LocationType.PRODUCTION,
+            address: 'Primo de Verdad # 206, Valle del Sur, 34120 Durango, Dgo.',
+            is_active: true,
+          },
+        });
+        console.log(`   ✅ Ubicación de producción creada: ${productionLocation.id}`);
+        console.log(`   📍 Dirección: ${productionLocation.address}`);
+      } else {
+        // Si existe pero la dirección es diferente, actualizarla
+        if (productionLocation.address !== 'Primo de Verdad # 206, Valle del Sur, 34120 Durango, Dgo.') {
+          console.log(`   ⚠️  Ubicación encontrada pero con dirección diferente. Actualizando...`);
+          productionLocation = await prisma.location.update({
+            where: { id: productionLocation.id },
+            data: {
+              address: 'Primo de Verdad # 206, Valle del Sur, 34120 Durango, Dgo.',
+              is_active: true,
+            },
+          });
+          console.log(`   ✅ Ubicación actualizada: ${productionLocation.id}`);
+          console.log(`   📍 Nueva dirección: ${productionLocation.address}`);
+        } else {
+          console.log(`   ✅ Ubicación de producción ya existe: ${productionLocation.id}`);
+        }
       }
     }
 
